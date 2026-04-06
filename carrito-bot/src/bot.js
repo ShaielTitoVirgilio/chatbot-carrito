@@ -229,6 +229,7 @@ REGLA 9 — NUNCA:
 // ─────────────────────────────────────────────
 async function processMessage(phone, messageText) {
     let session = getSession(phone);
+    const isNewSession = !session;
     if (!session) {
         session = createSession(phone);
     }
@@ -285,7 +286,10 @@ async function processMessage(phone, messageText) {
             .replace(/DERIVAR[_\s]HUMANO[:：].*$/im, "")
             .trim();
 
-        return cleanReply;
+        const greeting = isNewSession
+            ? "¡Hola! Soy tu asistente virtual Tito 😊\n\n"
+            : "";
+        return greeting + cleanReply;
     } catch (error) {
         console.error("❌ Error en Groq:", error.message);
         return "Lo siento, tuve un problema técnico. Intentá de nuevo o llamanos al 472 28060. 🙏";
