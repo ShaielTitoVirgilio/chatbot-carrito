@@ -6,7 +6,7 @@ require("dotenv").config();
 const Groq = require("groq-sdk");
 const { LOCAL_INFO, getMenuAsText } = require("./menu");
 const { sendMessage } = require("./whatsapp");
-
+const supabase = require("./db");
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─────────────────────────────────────────────
@@ -14,8 +14,8 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 // Estados posibles: "bot" | "handoff"
 // ─────────────────────────────────────────────
 const sessions = new Map();
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min sin actividad → sesión nueva
-const HANDOFF_TIMEOUT_MS = 60 * 60 * 1000;   // 1 hora → bot se reactiva solo
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000;   // 15 min sin actividad → sesión nueva
+const HANDOFF_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → bot se reactiva solo
 const MAX_MESSAGES = 40;                       // límite antes de derivar por loop
 
 function getSession(phone) {
@@ -181,17 +181,37 @@ Subtotal: $XXX
 ❌ Respondé *NO* para corregir algo
 
 REGLA 6 — CONFIRMACIÓN DEL CLIENTE (dice "sí", "si", "confirmar", "dale", "ok", "correcto", "está bien"):
-Respondé SOLO esta línea visible al cliente:
+
+Respondé EXACTAMENTE en DOS mensajes separados:
+
+MENSAJE 1 (visible para el cliente):
 "✅ Solicitud enviada. El personal del local te confirma el pedido en breve. 🙌"
 
-Luego, en una nueva línea separada, sin texto antes ni después, escribí exactamente esto:
-SOLICITUD_PEDIDO:{"items":[{"nombre":"...","cantidad":N,"precio":N,"detalle":"..."}],"subtotal":N,"total":N,"tipo":"retiro" o "delivery","direccion":"...","nombre":"...","telefono":"...","clientePhone":"PHONE"}
+MENSAJE 2 (solo JSON, sin texto antes ni después):
+{
+  "items": [
+    {
+      "nombre": "...",
+      "cantidad": N,
+      "precio": N,
+      "detalle": "..."
+    }
+  ],
+  "subtotal": N,
+  "total": N,
+  "tipo": "retiro" o "delivery",
+  "direccion": "...",
+  "nombre": "...",
+  "telefono": "...",
+  "clientePhone": "NUMERO_REAL"
+}
 
-Reglas de la señal:
-- Reemplazá PHONE por el número real del cliente
-- Si un campo no aplica (ej: dirección en retiro), usá null
-- No escribas nada después de la señal
-- No expliques ni menciones la señal al cliente
+REGLAS DEL JSON:
+- Debe ser JSON válido
+- No agregar texto antes ni después
+- No usar etiquetas como SOLICITUD_PEDIDO
+- clientePhone debe ser el número real del cliente
+- Si un campo no aplica (ej: dirección en retiro), usar null
 
 REGLA 7 — EL CLIENTE DICE NO o quiere corregir:
 Preguntá qué quiere cambiar y ajustá.
@@ -222,7 +242,11 @@ REGLA 9 — NUNCA:
 - Escribas razonamiento interno o texto del sistema en el mensaje al cliente.
 - Empieces tu respuesta con frases como "No inventes", "Según mis instrucciones", 
   "Como asistente", o cualquier texto que no sea la respuesta directa al cliente.
-- Escribas las señales técnicas SOLICITUD_PEDIDO o DERIVAR_HUMANO en el cuerpo visible del mensaje.`;
+- Escribas las señales técnicas SOLICITUD_PEDIDO o DERIVAR_HUMANO en el cuerpo visible del mensaje.
+
+REGLA 10 — FORMATO DE RESPUESTA FINAL:
+Cuando envíes el JSON del pedido, debe ser el ÚNICO contenido del mensaje.
+No incluyas emojis, texto, explicaciones ni etiquetas.`;
 
 // ─────────────────────────────────────────────
 // PROCESO PRINCIPAL
@@ -299,61 +323,34 @@ async function processMessage(phone, messageText) {
 // ─────────────────────────────────────────────
 // NOTIFICAR SOLICITUD DE PEDIDO AL LOCAL
 // ─────────────────────────────────────────────
-async function handleOrderRequest(clientPhone, botReply) {
+
+
+
+
+async function handleOrderRequest(clientPhone, orderData) {
     try {
-        const match = botReply.match(/SOLICITUD[_\s]PEDIDO[:：]\s*(\{.*\})/i);
-        if (!match) return;
-
-        const data = JSON.parse(match[1]);
         const orderNumber = getOrderNumber();
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString("es-UY", {
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: "America/Montevideo",
+
+        const { error } = await supabase.from("orders").insert({
+            order_number: orderNumber,
+            customer_name: orderData.nombre,
+            customer_phone: clientPhone,
+            type: orderData.tipo,
+            address: orderData.direccion || null,
+            items: orderData.items,
+            subtotal: orderData.subtotal,
+            total: orderData.total,
+            status: "pending"
         });
-        const dateStr = now.toLocaleDateString("es-UY", {
-            timeZone: "America/Montevideo",
-        });
 
-        let msg = `🔔 *SOLICITUD DE PEDIDO ${orderNumber}*\n`;
-        msg += `🕐 ${dateStr} — ${timeStr}\n`;
-        msg += `📞 Cliente: ${clientPhone}\n`;
-        msg += `─────────────────\n`;
-
-        for (const item of data.items) {
-            let linea = `• ${item.cantidad}x ${item.nombre}`;
-            if (item.verduras) linea += ` (verduras: ${item.verduras})`;
-            if (item.extras) linea += ` [+${item.extras}]`;
-            linea += ` — $${item.precio * item.cantidad}`;
-            if (item.extras) linea += ` (+$${50 * item.extras.split(",").length} extras)`;
-            msg += linea + "\n";
-        }
-
-        msg += `─────────────────\n`;
-
-        if (data.tipo === "delivery") {
-            msg += `🚚 *DELIVERY*\n`;
-            msg += `📍 Dirección: ${data.direccion}\n`;
-            msg += `👤 Nombre: ${data.nombre}\n`;
-            msg += `📱 Teléfono: ${data.telefono}\n`;
-            msg += `💰 Subtotal: $${data.subtotal}\n`;
-            msg += `🛵 Envío: $50 aprox\n`;
-            msg += `💵 *TOTAL ESTIMADO: $${data.total}*\n`;
+        if (error) {
+            console.error("❌ Error guardando pedido:", error);
         } else {
-            msg += `🏪 *RETIRO EN LOCAL*\n`;
-            msg += `👤 Nombre: ${data.nombre}\n`;
-            msg += `💵 *TOTAL: $${data.total}*\n`;
+            console.log(`💾 Pedido ${orderNumber} guardado en DB`);
         }
 
-        msg += `─────────────────\n`;
-        msg += `💵 Pago: Efectivo\n\n`;
-        msg += `👆 Tocá el número del cliente para confirmar, cancelar o consultarle algo.`;
-
-        await sendMessage(process.env.OWNER_PHONE, msg);
-        console.log(`📨 Solicitud ${orderNumber} enviada al local`);
     } catch (error) {
-        console.error("❌ Error enviando solicitud:", error.message);
+        console.error("❌ Error en handleOrderRequest:", error.message);
     }
 }
 
