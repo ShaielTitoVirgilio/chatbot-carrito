@@ -7,201 +7,389 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f0f2f5;
-      color: #1a1a1a;
+    :root {
+      --green: #25d366;
+      --green-dark: #128c7e;
+      --bg: #f0f2f5;
+      --bg-chat: #efeae2;
+      --bubble-in: #ffffff;
+      --bubble-bot: #d9fdd3;
+      --bubble-human: #b2f0ff;
+      --border: #e9edef;
+      --text: #111b21;
+      --text-muted: #667781;
     }
 
-    header {
-      background: #25d366;
-      color: white;
-      padding: 14px 20px;
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      height: 100vh;
+    }
+
+    /* ──── SIDEBAR ──── */
+    .sidebar {
+      background: white;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      background: #f0f2f5;
+      padding: 14px 16px;
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-header h1 {
+      font-size: 17px;
       font-weight: 700;
-      position: sticky;
-      top: 0;
-      z-index: 100;
     }
 
-    .tabs {
-      display: flex;
-      background: white;
-      border-bottom: 2px solid #e0e0e0;
-      position: sticky;
-      top: 52px;
-      z-index: 99;
-    }
-
-    .tab {
-      flex: 1;
-      padding: 12px;
-      text-align: center;
-      font-weight: 600;
-      cursor: pointer;
-      color: #666;
-      border-bottom: 3px solid transparent;
-      transition: all 0.2s;
-    }
-
-    .tab.active {
-      color: #25d366;
-      border-bottom-color: #25d366;
-    }
-
-    .badge {
-      background: #ff4444;
-      color: white;
-      border-radius: 10px;
-      font-size: 11px;
-      padding: 1px 6px;
-      margin-left: 5px;
-    }
-
-    .section { display: none; padding: 16px; }
-    .section.active { display: block; }
-
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 10px;
-    }
-
-    .order-num {
-      font-size: 18px;
-      font-weight: 700;
-      color: #25d366;
-    }
-
-    .status-badge {
-      font-size: 12px;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-weight: 600;
-    }
-
-    .status-pending { background: #fff3cd; color: #856404; }
-    .status-confirmed { background: #d1e7dd; color: #0f5132; }
-    .status-done { background: #e2e3e5; color: #41464b; }
-
-    .info-row {
-      font-size: 14px;
-      color: #555;
-      margin-bottom: 4px;
-    }
-
-    .info-row strong { color: #1a1a1a; }
-
-    .items-list {
-      margin: 10px 0;
-      padding: 10px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      font-size: 14px;
-    }
-
-    .item-row { margin-bottom: 4px; }
-
-    .total-row {
-      font-size: 15px;
-      font-weight: 700;
-      color: #1a1a1a;
-      margin-top: 8px;
-    }
-
-    .actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-    }
-
-    button {
-      border: none;
-      border-radius: 8px;
-      padding: 8px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-
-    button:hover { opacity: 0.85; }
-
-    .btn-green { background: #25d366; color: white; }
-    .btn-blue { background: #0d6efd; color: white; }
-    .btn-gray { background: #e0e0e0; color: #333; }
-    .btn-red { background: #dc3545; color: white; }
-
-    .reply-box {
-      display: none;
-      margin-top: 10px;
-    }
-
-    .reply-box textarea {
-      width: 100%;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 10px;
-      font-size: 14px;
-      resize: vertical;
-      min-height: 80px;
-      font-family: inherit;
-    }
-
-    .reply-box .send-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
-
-    .empty {
-      text-align: center;
-      color: #999;
-      padding: 40px 20px;
-      font-size: 15px;
+    .sidebar-header .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--green);
     }
 
     .refresh-btn {
-      background: white;
-      border: 1px solid #ddd;
-      border-radius: 20px;
-      padding: 6px 14px;
-      font-size: 13px;
-      cursor: pointer;
       margin-left: auto;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 18px;
+      padding: 4px 8px;
+    }
+    .refresh-btn:hover { color: var(--text); }
+
+    .search {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .search input {
+      width: 100%;
+      padding: 8px 14px;
+      border: none;
+      background: #f0f2f5;
+      border-radius: 18px;
+      font-size: 14px;
+      outline: none;
     }
 
-    .top-bar {
+    .conv-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .conv-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #f5f5f5;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      transition: background 0.15s;
+    }
+    .conv-item:hover { background: #f5f6f6; }
+    .conv-item.active { background: #f0f2f5; }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
       display: flex;
       align-items: center;
-      padding: 8px 16px;
-      gap: 8px;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      flex-shrink: 0;
     }
 
-    .top-bar span { font-size: 13px; color: #666; }
+    .conv-body {
+      flex: 1;
+      min-width: 0;
+    }
 
-    .motivo-tag {
-      display: inline-block;
-      background: #ffe8cc;
-      color: #b35c00;
+    .conv-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 3px;
+    }
+    .conv-name {
+      font-weight: 600;
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .conv-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .conv-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+    .conv-preview {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    .unread-badge {
+      background: var(--green);
+      color: white;
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .status-pill {
+      font-size: 10px;
+      padding: 1px 7px;
       border-radius: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .status-bot { background: #e8f5e9; color: #2e7d32; }
+    .status-handoff { background: #fff3cd; color: #856404; }
+
+    /* ──── CHAT ──── */
+    .chat {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: var(--bg-chat);
+      background-image:
+        radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .chat-header {
+      background: #f0f2f5;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .chat-header-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .chat-header-info .name { font-weight: 600; font-size: 16px; }
+    .chat-header-info .sub { font-size: 12px; color: var(--text-muted); }
+
+    .chat-actions { display: flex; gap: 8px; }
+    .chat-action-btn {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .chat-action-btn:hover { background: #f5f5f5; }
+    .chat-action-btn.primary { background: var(--green); color: white; border-color: var(--green); }
+    .chat-action-btn.primary:hover { background: var(--green-dark); }
+
+    .order-card {
+      margin: 16px 16px 0;
+      background: white;
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border-left: 4px solid var(--green);
+    }
+
+    .order-card.confirmed { border-left-color: #0d6efd; }
+
+    .order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .order-num {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--green-dark);
+    }
+    .order-status {
+      font-size: 11px;
       padding: 2px 8px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .order-status.pending { background: #fff3cd; color: #856404; }
+    .order-status.confirmed { background: #cfe2ff; color: #0b5394; }
+
+    .order-info { font-size: 13px; color: var(--text-muted); margin: 3px 0; }
+    .order-items {
+      font-size: 13px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-top: 8px;
+    }
+    .order-items .item { padding: 2px 0; }
+    .order-total {
+      font-weight: 700;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+    .order-btns {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .order-btn {
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
       font-size: 12px;
       font-weight: 600;
-      margin-bottom: 6px;
+      cursor: pointer;
+    }
+    .order-btn.confirm { background: #0d6efd; color: white; }
+    .order-btn.ready { background: var(--green); color: white; }
+    .order-btn.cancel { background: #dc3545; color: white; }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 16px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .msg-row {
+      display: flex;
+      padding: 1px 0;
+    }
+    .msg-row.in { justify-content: flex-start; }
+    .msg-row.bot,
+    .msg-row.human { justify-content: flex-end; }
+
+    .bubble {
+      max-width: 65%;
+      padding: 7px 10px 8px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.35;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      box-shadow: 0 1px 1px rgba(0,0,0,0.08);
+      position: relative;
+    }
+    .bubble .time {
+      font-size: 10px;
+      color: rgba(0,0,0,0.45);
+      margin-left: 8px;
+      float: right;
+      margin-top: 4px;
+    }
+    .bubble .sender-tag {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 2px;
+      opacity: 0.65;
+    }
+    .msg-row.in .bubble { background: var(--bubble-in); border-top-left-radius: 2px; }
+    .msg-row.bot .bubble { background: var(--bubble-bot); border-top-right-radius: 2px; }
+    .msg-row.bot .sender-tag { color: #2e7d32; }
+    .msg-row.human .bubble { background: var(--bubble-human); border-top-right-radius: 2px; }
+    .msg-row.human .sender-tag { color: #0b5394; }
+
+    .composer {
+      padding: 10px 16px;
+      background: #f0f2f5;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      border-top: 1px solid var(--border);
+    }
+
+    .composer textarea {
+      flex: 1;
+      border: none;
+      background: white;
+      border-radius: 20px;
+      padding: 10px 16px;
+      font-size: 15px;
+      outline: none;
+      resize: none;
+      max-height: 120px;
+      font-family: inherit;
+      line-height: 1.4;
+    }
+
+    .composer button {
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .composer button:hover { background: var(--green-dark); }
+    .composer button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      gap: 12px;
+      padding: 20px;
+    }
+    .empty-state .emoji { font-size: 64px; }
+    .empty-state p { font-size: 14px; text-align: center; }
+
+    .empty-list {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
     }
 
     .toast {
@@ -219,233 +407,402 @@
       z-index: 999;
       pointer-events: none;
     }
-
     .toast.show { opacity: 1; }
+
+    .back-btn {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 22px;
+      cursor: pointer;
+      padding: 0 6px;
+    }
+
+    /* ──── MOBILE ──── */
+    @media (max-width: 768px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar, .chat { height: 100vh; }
+      .chat { display: none; }
+      body.chat-open .sidebar { display: none; }
+      body.chat-open .chat { display: flex; }
+      .back-btn { display: block; }
+    }
   </style>
 </head>
 <body>
 
-<header>🛒 Carrito del Paseo</header>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="dot"></span>
+      <h1>Carrito del Paseo</h1>
+      <button class="refresh-btn" onclick="loadConversations(true)" title="Actualizar">↻</button>
+    </div>
+    <div class="search">
+      <input type="text" placeholder="Buscar chat..." oninput="filterConvs(this.value)" />
+    </div>
+    <div class="conv-list" id="conv-list">
+      <div class="empty-list">Cargando...</div>
+    </div>
+  </aside>
 
-<div class="tabs">
-  <div class="tab active" onclick="switchTab('orders')">
-    Pedidos <span class="badge" id="badge-orders">0</span>
-  </div>
-  <div class="tab" onclick="switchTab('handoffs')">
-    Consultas <span class="badge" id="badge-handoffs">0</span>
-  </div>
-</div>
-
-<div class="top-bar">
-  <span id="last-update">Actualizando...</span>
-  <button class="refresh-btn" onclick="loadAll()">↻ Actualizar</button>
-</div>
-
-<div id="section-orders" class="section active">
-  <div id="orders-list"><div class="empty">Cargando...</div></div>
-</div>
-
-<div id="section-handoffs" class="section">
-  <div id="handoffs-list"><div class="empty">Cargando...</div></div>
+  <!-- CHAT -->
+  <main class="chat" id="chat">
+    <div class="empty-state">
+      <div class="emoji">💬</div>
+      <p>Seleccioná una conversación para empezar a chatear.</p>
+    </div>
+  </main>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-  let activeTab = 'orders';
+  const state = {
+    conversations: [],
+    activeConv: null,  // phone
+    activeData: null,
+    search: "",
+    lastMsgId: null,
+  };
 
-  function switchTab(tab) {
-    activeTab = tab;
-    document.querySelectorAll('.tab').forEach((t, i) => {
-      t.classList.toggle('active', (i === 0 && tab === 'orders') || (i === 1 && tab === 'handoffs'));
-    });
-    document.getElementById('section-orders').classList.toggle('active', tab === 'orders');
-    document.getElementById('section-handoffs').classList.toggle('active', tab === 'handoffs');
+  // ──── Utils
+  function timeAgo(dateStr) {
+    if (!dateStr) return "";
+    const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+    if (diff < 60) return "ahora";
+    if (diff < 3600) return Math.floor(diff / 60) + "min";
+    if (diff < 86400) return Math.floor(diff / 3600) + "h";
+    return Math.floor(diff / 86400) + "d";
+  }
+
+  function formatTime(dateStr) {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function initials(name, phone) {
+    if (name) {
+      return name.trim().split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
+    }
+    return phone?.slice(-2) || "?";
   }
 
   function showToast(msg) {
-    const t = document.getElementById('toast');
+    const t = document.getElementById("toast");
     t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2500);
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2500);
   }
 
-  function timeAgo(dateStr) {
-    const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
-    if (diff < 60) return 'hace ' + diff + 's';
-    if (diff < 3600) return 'hace ' + Math.floor(diff / 60) + 'min';
-    return 'hace ' + Math.floor(diff / 3600) + 'h';
+  function escapeHtml(s) {
+    if (!s) return "";
+    return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   }
 
-  function toggleReply(id) {
-    const box = document.getElementById('reply-' + id);
-    box.style.display = box.style.display === 'block' ? 'none' : 'block';
-    if (box.style.display === 'block') box.querySelector('textarea').focus();
-  }
+  // ──── Render sidebar
+  function renderConversations() {
+    const el = document.getElementById("conv-list");
+    const list = state.conversations.filter(c => {
+      if (!state.search) return true;
+      const s = state.search.toLowerCase();
+      return (c.customer_name || "").toLowerCase().includes(s)
+          || (c.customer_phone || "").includes(s)
+          || (c.last_message_preview || "").toLowerCase().includes(s);
+    });
 
-  async function sendReply(phone, id, type) {
-    const textarea = document.getElementById('reply-' + id).querySelector('textarea');
-    const msg = textarea.value.trim();
-    if (!msg) return;
-
-    try {
-      const res = await fetch('/api/reply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, message: msg })
-      });
-      if (!res.ok) throw new Error();
-      textarea.value = '';
-      document.getElementById('reply-' + id).style.display = 'none';
-      showToast('✅ Mensaje enviado');
-    } catch {
-      showToast('❌ Error al enviar');
-    }
-  }
-
-  async function updateStatus(table, id, status) {
-    try {
-      await fetch(`/api/${table}/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      showToast('✅ Estado actualizado');
-      loadAll();
-    } catch {
-      showToast('❌ Error al actualizar');
-    }
-  }
-
-  async function reactivateBot(phone, table, id) {
-    try {
-      await fetch('/api/reactivate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
-      });
-      await updateStatus(table, id, 'resolved');
-    } catch {
-      showToast('❌ Error al reactivar');
-    }
-  }
-
-  function renderOrders(orders) {
-    const el = document.getElementById('orders-list');
-    const pending = orders.filter(o => o.status === 'pending');
-    document.getElementById('badge-orders').textContent = pending.length;
-
-    if (!orders.length) {
-      el.innerHTML = '<div class="empty">No hay pedidos hoy 🎉</div>';
+    if (!list.length) {
+      el.innerHTML = '<div class="empty-list">No hay conversaciones todavía.</div>';
       return;
     }
 
-    el.innerHTML = orders.map(o => {
-      const items = Array.isArray(o.items) ? o.items : [];
-      const itemsHtml = items.map(i =>
-        `<div class="item-row">• ${i.nombre}${i.detalle ? ' <em>('+i.detalle+')</em>' : ''} x${i.cantidad} — $${i.precio * i.cantidad}</div>`
-      ).join('');
-
-      const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmado', done: 'Listo' }[o.status] || o.status;
-      const statusClass = 'status-' + o.status;
-
+    el.innerHTML = list.map(c => {
+      const active = c.customer_phone === state.activeConv ? "active" : "";
+      const statusClass = "status-" + (c.status || "bot");
       return `
-      <div class="card">
-        <div class="card-header">
-          <span class="order-num">${o.order_number}</span>
-          <span class="status-badge ${statusClass}">${statusLabel}</span>
-        </div>
-        <div class="info-row">👤 <strong>${o.customer_name || '—'}</strong></div>
-        ${o.type === 'delivery'
-          ? `<div class="info-row">🚚 Delivery — ${o.address || '—'}</div>
-             <div class="info-row">📞 ${o.contact_phone || o.customer_phone}</div>`
-          : `<div class="info-row">🏪 Retiro en local</div>`
-        }
-        <div class="info-row">⏱ ${timeAgo(o.created_at)}</div>
-        <div class="items-list">
-          ${itemsHtml}
-          <div class="total-row">TOTAL: $${o.total}</div>
-        </div>
-        <div class="actions">
-          <button class="btn-green" onclick="toggleReply('o${o.id}')">💬 Responder</button>
-          ${o.status === 'pending'
-            ? `<button class="btn-blue" onclick="updateStatus('orders', '${o.id}', 'confirmed')">✅ Confirmar</button>`
-            : ''}
-          ${o.status === 'confirmed'
-            ? `<button class="btn-gray" onclick="updateStatus('orders', '${o.id}', 'done')">🏁 Listo</button>`
-            : ''}
-          <button class="btn-green" onclick="reactivateBot('${o.customer_phone}', 'orders', '${o.id}')">🤖 Reactivar bot</button>
-        </div>
-        <div class="reply-box" id="reply-o${o.id}">
-          <textarea placeholder="Escribí el mensaje para el cliente..."></textarea>
-          <div class="send-row">
-            <button class="btn-green" onclick="sendReply('${o.customer_phone}', 'o${o.id}', 'orders')">Enviar</button>
-            <button class="btn-gray" onclick="toggleReply('o${o.id}')">Cancelar</button>
+        <div class="conv-item ${active}" onclick="openChat('${c.customer_phone}')">
+          <div class="avatar">${initials(c.customer_name, c.customer_phone)}</div>
+          <div class="conv-body">
+            <div class="conv-top">
+              <div class="conv-name">${escapeHtml(c.customer_name || c.customer_phone)}</div>
+              <div class="conv-time">${timeAgo(c.last_message_at)}</div>
+            </div>
+            <div class="conv-bottom">
+              <div class="conv-preview">${escapeHtml(c.last_message_preview || "")}</div>
+              ${c.unread_count > 0
+                ? `<span class="unread-badge">${c.unread_count}</span>`
+                : `<span class="status-pill ${statusClass}">${c.status || "bot"}</span>`}
+            </div>
           </div>
+        </div>`;
+    }).join("");
+  }
+
+  function filterConvs(value) {
+    state.search = value;
+    renderConversations();
+  }
+
+  // ──── Render chat
+  function renderChat() {
+    const el = document.getElementById("chat");
+    if (!state.activeData) {
+      el.innerHTML = `
+        <div class="empty-state">
+          <div class="emoji">💬</div>
+          <p>Seleccioná una conversación para empezar a chatear.</p>
+        </div>`;
+      return;
+    }
+
+    const { conversation: conv, messages, active_order } = state.activeData;
+
+    const orderHtml = active_order ? renderOrderCard(active_order) : "";
+    const messagesHtml = messages.map(renderMessage).join("");
+
+    el.innerHTML = `
+      <div class="chat-header">
+        <button class="back-btn" onclick="closeChat()">←</button>
+        <div class="avatar">${initials(conv.customer_name, conv.customer_phone)}</div>
+        <div class="chat-header-info">
+          <div class="name">${escapeHtml(conv.customer_name || conv.customer_phone)}</div>
+          <div class="sub">${conv.customer_phone} · <span class="status-pill status-${conv.status}">${conv.status}</span></div>
+        </div>
+        <div class="chat-actions">
+          ${conv.status === "handoff"
+            ? `<button class="chat-action-btn" onclick="setStatus('bot')">🤖 Reactivar bot</button>`
+            : `<button class="chat-action-btn" onclick="setStatus('handoff')">🙋 Tomar chat</button>`}
+        </div>
+      </div>
+      ${orderHtml}
+      <div class="messages" id="messages">
+        ${messagesHtml || '<div class="empty-list">Sin mensajes aún.</div>'}
+      </div>
+      <div class="composer">
+        <textarea id="composer-input" placeholder="Escribí un mensaje..." rows="1"
+          onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendReply();}"
+          oninput="autosize(this)"></textarea>
+        <button id="send-btn" onclick="sendReply()">➤</button>
+      </div>
+    `;
+
+    scrollMessagesToBottom();
+  }
+
+  function renderOrderCard(o) {
+    const items = Array.isArray(o.items) ? o.items : [];
+    const itemsHtml = items.map(i =>
+      `<div class="item">• ${escapeHtml(i.nombre)}${i.detalle ? ' <em>('+escapeHtml(i.detalle)+')</em>' : ''} x${i.cantidad} — $${i.precio * i.cantidad}</div>`
+    ).join("");
+
+    const statusLabel = { pending: "Pendiente", confirmed: "Confirmado" }[o.status] || o.status;
+
+    return `
+      <div class="order-card ${o.status}">
+        <div class="order-header">
+          <span class="order-num">📋 ${o.order_number}</span>
+          <span class="order-status ${o.status}">${statusLabel}</span>
+        </div>
+        <div class="order-info">👤 ${escapeHtml(o.customer_name || "—")}</div>
+        ${o.type === "delivery"
+          ? `<div class="order-info">🚚 Delivery — ${escapeHtml(o.address || "—")}</div>
+             <div class="order-info">📞 ${escapeHtml(o.contact_phone || o.customer_phone)}</div>`
+          : `<div class="order-info">🏪 Retiro en local</div>`}
+        <div class="order-items">
+          ${itemsHtml}
+          <div class="order-total">TOTAL: $${o.total}</div>
+        </div>
+        <div class="order-btns">
+          ${o.status === "pending"
+            ? `<button class="order-btn confirm" onclick="confirmOrder('${o.id}')">✅ Confirmar pedido</button>`
+            : ""}
+          ${o.status === "confirmed"
+            ? `<button class="order-btn ready" onclick="markOrderReady('${o.id}')">🏁 Marcar listo</button>`
+            : ""}
+          <button class="order-btn cancel" onclick="cancelOrder('${o.id}')">❌ Cancelar</button>
         </div>
       </div>`;
-    }).join('');
   }
 
-  function renderHandoffs(handoffs) {
-    const el = document.getElementById('handoffs-list');
-    const pending = handoffs.filter(h => h.status === 'pending');
-    document.getElementById('badge-handoffs').textContent = pending.length;
-
-    if (!handoffs.length) {
-      el.innerHTML = '<div class="empty">No hay consultas pendientes 👍</div>';
-      return;
-    }
-
-    el.innerHTML = handoffs.map(h => `
-      <div class="card">
-        <div class="card-header">
-          <span style="font-weight:700">📞 ${h.customer_phone}</span>
-          <span class="status-badge ${h.status === 'pending' ? 'status-pending' : 'status-done'}">
-            ${h.status === 'pending' ? 'Pendiente' : 'Resuelto'}
-          </span>
+  function renderMessage(m) {
+    const tag = m.direction === "in" ? "" :
+                m.direction === "bot" ? '<span class="sender-tag">🤖 Bot</span>' :
+                '<span class="sender-tag">👤 Vos</span>';
+    return `
+      <div class="msg-row ${m.direction}">
+        <div class="bubble">
+          ${tag}${escapeHtml(m.content)}
+          <span class="time">${formatTime(m.created_at)}</span>
         </div>
-        <span class="motivo-tag">${h.motivo || 'sin motivo'}</span>
-        ${h.last_message ? `<div class="info-row">💬 <em>"${h.last_message}"</em></div>` : ''}
-        ${h.resumen ? `<div class="info-row">📋 ${h.resumen}</div>` : ''}
-        <div class="info-row">⏱ ${timeAgo(h.created_at)}</div>
-        <div class="actions">
-          <button class="btn-green" onclick="toggleReply('h${h.id}')">💬 Responder</button>
-          <button class="btn-green" onclick="reactivateBot('${h.customer_phone}', 'handoffs', '${h.id}')">🤖 Reactivar bot</button>
-          ${h.status === 'pending'
-            ? `<button class="btn-gray" onclick="updateStatus('handoffs', '${h.id}', 'resolved')">✅ Marcar resuelto</button>`
-            : ''}
-        </div>
-        <div class="reply-box" id="reply-h${h.id}">
-          <textarea placeholder="Escribí el mensaje para el cliente..."></textarea>
-          <div class="send-row">
-            <button class="btn-green" onclick="sendReply('${h.customer_phone}', 'h${h.id}', 'handoffs')">Enviar</button>
-            <button class="btn-gray" onclick="toggleReply('h${h.id}')">Cancelar</button>
-          </div>
-        </div>
-      </div>`
-    ).join('');
+      </div>`;
   }
 
-  async function loadAll() {
+  function scrollMessagesToBottom() {
+    const el = document.getElementById("messages");
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+
+  function autosize(el) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }
+
+  // ──── Actions
+  async function openChat(phone) {
+    state.activeConv = phone;
+    document.body.classList.add("chat-open");
+    await loadChat();
+    renderConversations();
+    // Marcar como leído
+    fetch(`/api/conversations/${phone}/mark-read`, { method: "POST" });
+  }
+
+  function closeChat() {
+    state.activeConv = null;
+    state.activeData = null;
+    document.body.classList.remove("chat-open");
+    renderChat();
+  }
+
+  async function loadChat() {
+    if (!state.activeConv) return;
     try {
-      const [ordRes, handRes] = await Promise.all([
-        fetch('/api/orders'),
-        fetch('/api/handoffs')
-      ]);
-      const orders = await ordRes.json();
-      const handoffs = await handRes.json();
-      renderOrders(orders);
-      renderHandoffs(handoffs);
-      document.getElementById('last-update').textContent =
-        'Actualizado ' + new Date().toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' });
+      const res = await fetch(`/api/conversations/${state.activeConv}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      // Preservar input y posición de scroll antes de re-renderizar
+      const prevInput = document.getElementById("composer-input");
+      const preservedText = prevInput ? prevInput.value : "";
+      const prevCount = state.activeData?.messages?.length || 0;
+
+      // Si no hay cambios relevantes, no re-renderizar
+      const prev = state.activeData;
+      const sameMsgs = prev && prev.messages.length === data.messages.length;
+      const sameStatus = prev && prev.conversation?.status === data.conversation?.status;
+      const sameOrderId = (prev?.active_order?.id || null) === (data.active_order?.id || null);
+      const sameOrderStatus = (prev?.active_order?.status || null) === (data.active_order?.status || null);
+      if (sameMsgs && sameStatus && sameOrderId && sameOrderStatus) {
+        state.activeData = data;
+        return;
+      }
+
+      state.activeData = data;
+      renderChat();
+
+      // Restaurar texto del input
+      const newInput = document.getElementById("composer-input");
+      if (newInput && preservedText) {
+        newInput.value = preservedText;
+        autosize(newInput);
+      }
+
+      if (data.messages.length > prevCount) scrollMessagesToBottom();
+    } catch {}
+  }
+
+  async function sendReply() {
+    const input = document.getElementById("composer-input");
+    const text = input.value.trim();
+    if (!text || !state.activeConv) return;
+    input.value = "";
+    autosize(input);
+    try {
+      const res = await fetch(`/api/conversations/${state.activeConv}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      if (!res.ok) throw new Error();
+      await loadChat();
+      await loadConversations();
     } catch {
-      showToast('❌ Error cargando datos');
+      showToast("❌ Error enviando mensaje");
+      input.value = text;
     }
   }
 
-  loadAll();
-  setInterval(loadAll, 30000); // auto-refresh cada 30s
+  async function setStatus(status) {
+    if (!state.activeConv) return;
+    try {
+      await fetch(`/api/conversations/${state.activeConv}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      showToast(status === "bot" ? "🤖 Bot reactivado" : "🙋 Tomaste el chat");
+      await loadChat();
+      await loadConversations();
+    } catch {
+      showToast("❌ Error");
+    }
+  }
+
+  async function confirmOrder(id) {
+    const minutes = prompt("¿En cuántos minutos estará listo?", "30");
+    if (minutes === null) return;
+    try {
+      const res = await fetch(`/api/orders/${id}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minutes: parseInt(minutes) || 30 }),
+      });
+      if (!res.ok) throw new Error();
+      showToast("✅ Pedido confirmado y avisado al cliente");
+      await loadChat();
+      await loadConversations();
+    } catch {
+      showToast("❌ Error al confirmar");
+    }
+  }
+
+  async function markOrderReady(id) {
+    if (!confirm("¿Marcar pedido como listo y avisar al cliente?")) return;
+    try {
+      const res = await fetch(`/api/orders/${id}/ready`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      showToast("🏁 Cliente avisado");
+      await loadChat();
+      await loadConversations();
+    } catch {
+      showToast("❌ Error");
+    }
+  }
+
+  async function cancelOrder(id) {
+    const reason = prompt("¿Motivo? (opcional)", "");
+    if (reason === null) return;
+    try {
+      const res = await fetch(`/api/orders/${id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) throw new Error();
+      showToast("❌ Pedido cancelado");
+      await loadChat();
+      await loadConversations();
+    } catch {
+      showToast("❌ Error");
+    }
+  }
+
+  // ──── Polling
+  async function loadConversations(showFeedback) {
+    try {
+      const res = await fetch("/api/conversations");
+      state.conversations = await res.json();
+      renderConversations();
+      if (showFeedback) showToast("↻ Actualizado");
+    } catch {
+      if (showFeedback) showToast("❌ Error cargando");
+    }
+  }
+
+  loadConversations();
+  setInterval(loadConversations, 5000);
+  setInterval(() => state.activeConv && loadChat(), 3000);
 </script>
 </body>
 </html>

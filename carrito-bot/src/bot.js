@@ -5,53 +5,102 @@ const supabase = require("./db");
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─────────────────────────────────────────────
-// SESIONES
+// SESIONES EN MEMORIA — solo para contexto del LLM
+// El estado real (bot/handoff) vive en la DB.
 // ─────────────────────────────────────────────
 const sessions = new Map();
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
-const HANDOFF_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_MESSAGES = 40;
 
-function getSession(phone) {
+function getLLMSession(phone) {
     const session = sessions.get(phone);
     if (!session) return null;
-    const now = Date.now();
-    if (session.status === "handoff" && now - session.handoffAt > HANDOFF_TIMEOUT_MS) {
-        console.log(`⏰ Reactivando bot para ${phone}`);
-        session.status = "bot";
-        session.messages = [];
-        session.handoffAt = null;
-    }
-    if (session.status === "bot" && now - session.lastActivity > SESSION_TIMEOUT_MS) {
+    if (Date.now() - session.lastActivity > SESSION_TIMEOUT_MS) {
         sessions.delete(phone);
         return null;
     }
-    session.lastActivity = now;
+    session.lastActivity = Date.now();
     return session;
 }
 
-function createSession(phone) {
-    const session = {
-        status: "bot",
-        messages: [],
-        lastActivity: Date.now(),
-        handoffAt: null,
-    };
+function createLLMSession(phone) {
+    const session = { messages: [], lastActivity: Date.now() };
     sessions.set(phone, session);
     return session;
 }
 
-function setHandoff(phone) {
-    const session = sessions.get(phone);
-    if (session) {
-        session.status = "handoff";
-        session.handoffAt = Date.now();
-        session.messages = [];
-    }
+function clearLLMSession(phone) {
+    sessions.delete(phone);
 }
 
 // ─────────────────────────────────────────────
-// HORARIO (20:00 – 02:00 hora Uruguay)
+// HELPERS DB — conversaciones y mensajes
+// ─────────────────────────────────────────────
+async function saveMessage(phone, direction, content) {
+    if (!content) return;
+    await supabase.from("messages").insert({
+        customer_phone: phone,
+        direction,
+        content,
+    });
+    await upsertConversationMeta(phone, direction, content);
+}
+
+async function upsertConversationMeta(phone, direction, content) {
+    const preview = content.length > 100 ? content.slice(0, 97) + "..." : content;
+    const { data: existing } = await supabase
+        .from("conversations")
+        .select("id, unread_count")
+        .eq("customer_phone", phone)
+        .maybeSingle();
+
+    if (existing) {
+        const update = {
+            last_message_at: new Date().toISOString(),
+            last_message_preview: preview,
+        };
+        if (direction === "in") {
+            update.unread_count = (existing.unread_count || 0) + 1;
+        }
+        await supabase.from("conversations").update(update).eq("customer_phone", phone);
+    } else {
+        await supabase.from("conversations").insert({
+            customer_phone: phone,
+            status: "bot",
+            last_message_at: new Date().toISOString(),
+            last_message_preview: preview,
+            unread_count: direction === "in" ? 1 : 0,
+        });
+    }
+}
+
+async function getConversationStatus(phone) {
+    const { data } = await supabase
+        .from("conversations")
+        .select("status")
+        .eq("customer_phone", phone)
+        .maybeSingle();
+    return data?.status || "bot";
+}
+
+async function setConversationStatus(phone, status, extra = {}) {
+    await supabase
+        .from("conversations")
+        .update({ status, ...extra })
+        .eq("customer_phone", phone);
+    if (status === "bot") clearLLMSession(phone);
+}
+
+async function setCustomerName(phone, name) {
+    if (!name) return;
+    await supabase
+        .from("conversations")
+        .update({ customer_name: name })
+        .eq("customer_phone", phone);
+}
+
+// ─────────────────────────────────────────────
+// HORARIO (14:00 – 02:00 hora Uruguay)
 // ─────────────────────────────────────────────
 function isOpen() {
     const hour = parseInt(
@@ -65,7 +114,7 @@ function isOpen() {
 }
 
 // ─────────────────────────────────────────────
-// NUMERACIÓN DE PEDIDOS (se reinicia cada día)
+// NUMERACIÓN DE PEDIDOS
 // ─────────────────────────────────────────────
 let orderCounter = 0;
 let lastOrderDate = new Date().toDateString();
@@ -164,7 +213,7 @@ REGLA 6 — CONFIRMACIÓN DEL CLIENTE (dice "sí", "si", "confirmar", "dale", "o
 Respondé EXACTAMENTE en DOS partes separadas por una línea en blanco:
 
 PARTE 1 (visible para el cliente):
-"✅ Solicitud enviada. El personal del local te confirma el pedido en breve. 🙌"
+"✅ Recibimos tu solicitud. Ahora el personal del local revisa el pedido y te confirma en breve. 🙌"
 
 PARTE 2 (solo JSON, sin texto antes ni después):
 {
@@ -220,23 +269,36 @@ No incluyas emojis, texto, explicaciones ni etiquetas junto al JSON.`;
 // PROCESO PRINCIPAL
 // ─────────────────────────────────────────────
 async function processMessage(phone, messageText) {
-    let session = getSession(phone);
-    const isNewSession = !session;
-    if (!session) session = createSession(phone);
+    // 1. Persistir siempre el mensaje entrante (aunque estemos en handoff)
+    await saveMessage(phone, "in", messageText);
 
-    if (session.status === "handoff") {
-        console.log(`🤝 Handoff activo para ${phone}, ignorando mensaje`);
+    // 2. Chequear estado real desde DB
+    const status = await getConversationStatus(phone);
+
+    // Si hay humano atendiendo, el bot no responde — pero el msg ya quedó guardado.
+    if (status === "handoff") {
+        console.log(`🤝 Handoff activo para ${phone}, mensaje guardado para el panel`);
         return null;
     }
 
+    // Fuera de horario
     if (!isOpen()) {
-        return "🕐 En este momento estamos cerrados.\n\nNuestro horario es de *20:00 a 02:00 hs*. ¡Volvemos esta noche! 🍔";
+        const msg = "🕐 En este momento estamos cerrados.\n\nNuestro horario es de *14:00 a 02:00 hs*. ¡Volvemos esta noche! 🍔";
+        await saveMessage(phone, "bot", msg);
+        return msg;
     }
 
+    // 3. Sesión LLM (contexto de conversación)
+    let session = getLLMSession(phone);
+    const isNewSession = !session;
+    if (!session) session = createLLMSession(phone);
+
+    // Límite de mensajes → derivar
     if (session.messages.length >= MAX_MESSAGES) {
-        await saveHandoff(phone, "loop_mensajes", "La sesión superó los 40 mensajes.", messageText);
-        setHandoff(phone);
-        return "Parece que tuvimos muchas idas y vueltas. Te paso con el personal del local para que te ayuden mejor. 👋";
+        await setConversationStatus(phone, "handoff");
+        const msg = "Parece que tuvimos muchas idas y vueltas. Te paso con el personal del local para que te ayuden mejor. 👋";
+        await saveMessage(phone, "bot", msg);
+        return msg;
     }
 
     session.messages.push({ role: "user", content: messageText });
@@ -254,42 +316,44 @@ async function processMessage(phone, messageText) {
         const botReply = response.choices[0].message.content;
         session.messages.push({ role: "assistant", content: botReply });
 
-        // Detectar JSON de pedido confirmado (tiene "items" y "clientePhone")
+        // Detectar JSON de pedido confirmado
         const orderJsonMatch = botReply.match(/\{[\s\S]*?"items"[\s\S]*?"clientePhone"[\s\S]*?\}/);
         if (orderJsonMatch) {
             try {
                 const orderData = JSON.parse(orderJsonMatch[0]);
                 await handleOrderRequest(phone, orderData);
+                if (orderData.nombre) await setCustomerName(phone, orderData.nombre);
             } catch (e) {
                 console.error("❌ Error parseando JSON de pedido:", e.message);
             }
-            setHandoff(phone);
+            await setConversationStatus(phone, "handoff");
         }
 
-        // Detectar derivación a humano
+        // Detectar derivación
         const handoffMatch = botReply.match(/DERIVAR[_\s]HUMANO[:：]\s*(\{[\s\S]*?\})/i);
         if (handoffMatch) {
-            try {
-                const data = JSON.parse(handoffMatch[1]);
-                await saveHandoff(phone, data.motivo || "sin_especificar", data.resumen || null, messageText);
-            } catch {
-                await saveHandoff(phone, "sin_especificar", null, messageText);
-            }
-            setHandoff(phone);
+            await setConversationStatus(phone, "handoff");
         }
 
-        // Limpiar señales técnicas antes de responder al cliente
+        // Limpiar señales técnicas
         const cleanReply = botReply
             .replace(/\{[\s\S]*?"items"[\s\S]*?"clientePhone"[\s\S]*?\}/, "")
             .replace(/DERIVAR[_\s]HUMANO[:：].*$/im, "")
             .trim();
 
         const greeting = isNewSession ? "¡Hola! Soy tu asistente virtual Tito 😊\n\n" : "";
-        return greeting + cleanReply;
+        const finalReply = greeting + cleanReply;
+
+        // Guardar respuesta del bot
+        if (finalReply) await saveMessage(phone, "bot", finalReply);
+
+        return finalReply;
 
     } catch (error) {
         console.error("❌ Error en Groq:", error.message);
-        return "Lo siento, tuve un problema técnico. Intentá de nuevo o llamanos al 472 28060. 🙏";
+        const msg = "Lo siento, tuve un problema técnico. Intentá de nuevo o llamanos al 472 28060. 🙏";
+        await saveMessage(phone, "bot", msg);
+        return msg;
     }
 }
 
@@ -317,22 +381,9 @@ async function handleOrderRequest(clientPhone, order) {
     }
 }
 
-// ─────────────────────────────────────────────
-// GUARDAR HANDOFF EN SUPABASE
-// ─────────────────────────────────────────────
-async function saveHandoff(clientPhone, motivo, resumen, lastMessage) {
-    const { error } = await supabase.from("handoffs").insert({
-        customer_phone: clientPhone,
-        motivo,
-        resumen,
-        last_message: lastMessage,
-        status: "pending",
-    });
-    if (error) {
-        console.error("❌ Error guardando handoff:", error.message);
-    } else {
-        console.log(`📨 Handoff guardado — ${clientPhone} (${motivo})`);
-    }
-}
-
-module.exports = { processMessage, getSession, setHandoff };
+module.exports = {
+    processMessage,
+    saveMessage,
+    setConversationStatus,
+    clearLLMSession,
+};

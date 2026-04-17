@@ -6,7 +6,12 @@ require("dotenv").config();
 
 const express = require("express");
 const path = require("path");
-const { processMessage, getSession, setHandoff } = require("./bot");
+const {
+    processMessage,
+    saveMessage,
+    setConversationStatus,
+    clearLLMSession,
+} = require("./bot");
 const { sendMessage, downloadMedia, markAsRead } = require("./whatsapp");
 const { transcribeAudio } = require("./transcribe");
 const supabase = require("./db");
@@ -15,6 +20,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
 
+const LOCAL_ADDRESS = "Zorrilla de San Martín 1835, Paysandú";
 const processedMessages = new Set();
 
 // ─────────────────────────────────────────────
@@ -28,7 +34,6 @@ app.get("/webhook", (req, res) => {
         console.log("✅ Webhook verificado por Meta");
         return res.status(200).send(challenge);
     }
-    console.warn("⚠️ Verificación de webhook fallida");
     return res.sendStatus(403);
 });
 
@@ -40,20 +45,17 @@ app.post("/webhook", async (req, res) => {
         for (const entry of body.entry || []) {
             for (const change of entry.changes || []) {
                 if (change.field !== "messages") continue;
-                const value = change.value;
-                const messages = value?.messages;
-                if (!messages?.length) continue;
-                for (const message of messages) {
-                    await handleIncomingMessage(message, value.metadata?.phone_number_id);
+                for (const message of change.value?.messages || []) {
+                    await handleIncomingMessage(message);
                 }
             }
         }
     } catch (error) {
-        console.error("❌ Error procesando webhook:", error);
+        console.error("❌ Error procesando webhook:", error.message);
     }
 });
 
-async function handleIncomingMessage(message, phoneNumberId) {
+async function handleIncomingMessage(message) {
     const messageId = message.id;
     const from = message.from;
     const type = message.type;
@@ -74,12 +76,11 @@ async function handleIncomingMessage(message, phoneNumberId) {
     } else if (type === "audio") {
         const mediaId = message.audio?.id;
         if (mediaId) {
-            console.log(`🎤 Transcribiendo audio...`);
             try {
                 const { buffer, mimeType } = await downloadMedia(mediaId);
                 const transcription = await transcribeAudio(buffer, mimeType);
                 if (transcription) {
-                    textToProcess = transcription;
+                    textToProcess = `🎤 ${transcription}`;
                 } else {
                     await sendMessage(from, "🙏 No pude entender el audio. ¿Podés escribirme?");
                     return;
@@ -101,9 +102,7 @@ async function handleIncomingMessage(message, phoneNumberId) {
 
     try {
         const reply = await processMessage(from, textToProcess);
-        if (reply) {
-            await sendMessage(from, reply);
-        }
+        if (reply) await sendMessage(from, reply);
     } catch (error) {
         console.error(`❌ Error procesando mensaje de ${from}:`, error.message);
         await sendMessage(from, "Ups, tuve un problema técnico. Intentá de nuevo o llamanos al 472 28060. 🙏");
@@ -118,79 +117,176 @@ app.get("/panel", (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// API — PEDIDOS
+// API — CONVERSACIONES
 // ─────────────────────────────────────────────
-app.get("/api/orders", async (req, res) => {
+app.get("/api/conversations", async (req, res) => {
     const { data, error } = await supabase
-        .from("orders")
+        .from("conversations")
         .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .order("last_message_at", { ascending: false })
+        .limit(100);
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+
+    // Enriquecer con pedido pendiente/confirmado si hay
+    const phones = data.map(c => c.customer_phone);
+    let activeOrders = [];
+    if (phones.length) {
+        const { data: ordersData } = await supabase
+            .from("orders")
+            .select("*")
+            .in("customer_phone", phones)
+            .in("status", ["pending", "confirmed"])
+            .order("created_at", { ascending: false });
+        activeOrders = ordersData || [];
+    }
+    const byPhone = {};
+    for (const o of activeOrders) {
+        if (!byPhone[o.customer_phone]) byPhone[o.customer_phone] = o;
+    }
+    const enriched = data.map(c => ({ ...c, active_order: byPhone[c.customer_phone] || null }));
+    res.json(enriched);
 });
 
-app.patch("/api/orders/:id", async (req, res) => {
-    const { status } = req.body;
+app.get("/api/conversations/:phone", async (req, res) => {
+    const phone = req.params.phone;
+    const [convRes, msgsRes, ordersRes] = await Promise.all([
+        supabase.from("conversations").select("*").eq("customer_phone", phone).maybeSingle(),
+        supabase.from("messages").select("*").eq("customer_phone", phone).order("created_at", { ascending: true }),
+        supabase.from("orders").select("*").eq("customer_phone", phone).order("created_at", { ascending: false }),
+    ]);
+
+    if (convRes.error) return res.status(500).json({ error: convRes.error.message });
+    if (!convRes.data) return res.status(404).json({ error: "Conversación no encontrada" });
+
+    const orders = ordersRes.data || [];
+    const activeOrder = orders.find(o => o.status === "pending" || o.status === "confirmed") || null;
+
+    res.json({
+        conversation: convRes.data,
+        messages: msgsRes.data || [],
+        orders,
+        active_order: activeOrder,
+    });
+});
+
+app.post("/api/conversations/:phone/mark-read", async (req, res) => {
     const { error } = await supabase
-        .from("orders")
-        .update({ status })
-        .eq("id", req.params.id);
+        .from("conversations")
+        .update({ unread_count: 0 })
+        .eq("customer_phone", req.params.phone);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ ok: true });
 });
 
-// ─────────────────────────────────────────────
-// API — HANDOFFS (consultas)
-// ─────────────────────────────────────────────
-app.get("/api/handoffs", async (req, res) => {
-    const { data, error } = await supabase
-        .from("handoffs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
-});
-
-app.patch("/api/handoffs/:id", async (req, res) => {
-    const { status } = req.body;
-    const { error } = await supabase
-        .from("handoffs")
-        .update({ status })
-        .eq("id", req.params.id);
-    if (error) return res.status(500).json({ error: error.message });
-    res.json({ ok: true });
-});
-
-// ─────────────────────────────────────────────
-// API — ENVIAR MENSAJE AL CLIENTE DESDE EL PANEL
-// ─────────────────────────────────────────────
-app.post("/api/reply", async (req, res) => {
-    const { phone, message } = req.body;
-    if (!phone || !message) return res.status(400).json({ error: "Faltan campos" });
+app.post("/api/conversations/:phone/reply", async (req, res) => {
+    const phone = req.params.phone;
+    const { content } = req.body;
+    if (!content?.trim()) return res.status(400).json({ error: "Contenido vacío" });
     try {
-        await sendMessage(phone, message);
+        await sendMessage(phone, content);
+        await saveMessage(phone, "human", content);
+        // Asegurar que quede en handoff (el empleado está atendiendo)
+        await setConversationStatus(phone, "handoff");
         res.json({ ok: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ─────────────────────────────────────────────
-// API — REACTIVAR BOT PARA UN CLIENTE
-// ─────────────────────────────────────────────
-app.post("/api/reactivate", async (req, res) => {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: "Falta phone" });
-    const session = getSession(phone);
-    if (session) {
-        session.status = "bot";
-        session.messages = [];
-        session.handoffAt = null;
+app.post("/api/conversations/:phone/status", async (req, res) => {
+    const phone = req.params.phone;
+    const { status } = req.body;
+    if (!["bot", "handoff"].includes(status)) {
+        return res.status(400).json({ error: "Status inválido" });
     }
-    console.log(`🤖 Bot reactivado para ${phone} desde el panel`);
+    await setConversationStatus(phone, status);
+    if (status === "bot") clearLLMSession(phone);
     res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────
+// API — PEDIDOS
+// ─────────────────────────────────────────────
+app.post("/api/orders/:id/confirm", async (req, res) => {
+    const { data: order, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", req.params.id)
+        .single();
+    if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
+
+    const minutes = req.body?.minutes || 30;
+    let msg = `✅ *Pedido ${order.order_number} confirmado!*\n\n`;
+    msg += `Hola ${order.customer_name || ""}, ya lo estamos preparando.\n\n`;
+    if (order.type === "delivery") {
+        msg += `🚚 Te lo enviamos a: ${order.address}\n`;
+        msg += `⏱ Tiempo estimado: ~${minutes} minutos\n`;
+        msg += `💵 Total a pagar: $${order.total} (efectivo)`;
+    } else {
+        msg += `🏪 Podés retirar en: ${LOCAL_ADDRESS}\n`;
+        msg += `⏱ Estará listo en ~${minutes} minutos\n`;
+        msg += `💵 Total: $${order.total}`;
+    }
+
+    try {
+        await sendMessage(order.customer_phone, msg);
+        await saveMessage(order.customer_phone, "human", msg);
+        await supabase.from("orders").update({ status: "confirmed" }).eq("id", order.id);
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post("/api/orders/:id/ready", async (req, res) => {
+    const { data: order, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", req.params.id)
+        .single();
+    if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
+
+    let msg = `🏁 *Pedido ${order.order_number} listo!*\n\n`;
+    if (order.type === "delivery") {
+        msg += `🏍 Ya sale en camino a: ${order.address}\n`;
+        msg += `💵 Tené $${order.total} en efectivo a mano.`;
+    } else {
+        msg += `🏪 Pasá a retirarlo cuando quieras por ${LOCAL_ADDRESS}.\n`;
+        msg += `💵 Total: $${order.total}`;
+    }
+
+    try {
+        await sendMessage(order.customer_phone, msg);
+        await saveMessage(order.customer_phone, "human", msg);
+        await supabase.from("orders").update({ status: "done" }).eq("id", order.id);
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post("/api/orders/:id/cancel", async (req, res) => {
+    const { data: order, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", req.params.id)
+        .single();
+    if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
+
+    const reason = req.body?.reason?.trim();
+    let msg = `❌ *Pedido ${order.order_number} cancelado*\n\n`;
+    msg += reason
+        ? `Motivo: ${reason}\n\nSi querés podemos arreglar algo distinto.`
+        : `No pudimos tomar tu pedido esta vez. Disculpá las molestias 🙏`;
+
+    try {
+        await sendMessage(order.customer_phone, msg);
+        await saveMessage(order.customer_phone, "human", msg);
+        await supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // ─────────────────────────────────────────────
@@ -203,7 +299,7 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`\n🚀 Carrito del Paseo Bot corriendo en puerto ${PORT}`);
-    console.log(`📊 Panel disponible en: http://localhost:${PORT}/panel`);
+    console.log(`📊 Panel: http://localhost:${PORT}/panel`);
     console.log(`\nVariables de entorno:`);
     console.log(`  WHATSAPP_TOKEN:       ${process.env.WHATSAPP_TOKEN ? "✅" : "❌ FALTA"}`);
     console.log(`  WHATSAPP_PHONE_ID:    ${process.env.WHATSAPP_PHONE_ID ? "✅" : "❌ FALTA"}`);
