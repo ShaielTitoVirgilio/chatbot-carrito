@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carrito del Paseo — Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f2f5;
+      color: #1a1a1a;
+    }
+
+    header {
+      background: #25d366;
+      color: white;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .tabs {
+      display: flex;
+      background: white;
+      border-bottom: 2px solid #e0e0e0;
+      position: sticky;
+      top: 52px;
+      z-index: 99;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 12px;
+      text-align: center;
+      font-weight: 600;
+      cursor: pointer;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      color: #25d366;
+      border-bottom-color: #25d366;
+    }
+
+    .badge {
+      background: #ff4444;
+      color: white;
+      border-radius: 10px;
+      font-size: 11px;
+      padding: 1px 6px;
+      margin-left: 5px;
+    }
+
+    .section { display: none; padding: 16px; }
+    .section.active { display: block; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .order-num {
+      font-size: 18px;
+      font-weight: 700;
+      color: #25d366;
+    }
+
+    .status-badge {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .status-pending { background: #fff3cd; color: #856404; }
+    .status-confirmed { background: #d1e7dd; color: #0f5132; }
+    .status-done { background: #e2e3e5; color: #41464b; }
+
+    .info-row {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    .info-row strong { color: #1a1a1a; }
+
+    .items-list {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .item-row { margin-bottom: 4px; }
+
+    .total-row {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-top: 8px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover { opacity: 0.85; }
+
+    .btn-green { background: #25d366; color: white; }
+    .btn-blue { background: #0d6efd; color: white; }
+    .btn-gray { background: #e0e0e0; color: #333; }
+    .btn-red { background: #dc3545; color: white; }
+
+    .reply-box {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .reply-box textarea {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 80px;
+      font-family: inherit;
+    }
+
+    .reply-box .send-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .empty {
+      text-align: center;
+      color: #999;
+      padding: 40px 20px;
+      font-size: 15px;
+    }
+
+    .refresh-btn {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-left: auto;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      gap: 8px;
+    }
+
+    .top-bar span { font-size: 13px; color: #666; }
+
+    .motivo-tag {
+      display: inline-block;
+      background: #ffe8cc;
+      color: #b35c00;
+      border-radius: 8px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<header>🛒 Carrito del Paseo</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('orders')">
+    Pedidos <span class="badge" id="badge-orders">0</span>
+  </div>
+  <div class="tab" onclick="switchTab('handoffs')">
+    Consultas <span class="badge" id="badge-handoffs">0</span>
+  </div>
+</div>
+
+<div class="top-bar">
+  <span id="last-update">Actualizando...</span>
+  <button class="refresh-btn" onclick="loadAll()">↻ Actualizar</button>
+</div>
+
+<div id="section-orders" class="section active">
+  <div id="orders-list"><div class="empty">Cargando...</div></div>
+</div>
+
+<div id="section-handoffs" class="section">
+  <div id="handoffs-list"><div class="empty">Cargando...</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let activeTab = 'orders';
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', (i === 0 && tab === 'orders') || (i === 1 && tab === 'handoffs'));
+    });
+    document.getElementById('section-orders').classList.toggle('active', tab === 'orders');
+    document.getElementById('section-handoffs').classList.toggle('active', tab === 'handoffs');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  function timeAgo(dateStr) {
+    const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+    if (diff < 60) return 'hace ' + diff + 's';
+    if (diff < 3600) return 'hace ' + Math.floor(diff / 60) + 'min';
+    return 'hace ' + Math.floor(diff / 3600) + 'h';
+  }
+
+  function toggleReply(id) {
+    const box = document.getElementById('reply-' + id);
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+    if (box.style.display === 'block') box.querySelector('textarea').focus();
+  }
+
+  async function sendReply(phone, id, type) {
+    const textarea = document.getElementById('reply-' + id).querySelector('textarea');
+    const msg = textarea.value.trim();
+    if (!msg) return;
+
+    try {
+      const res = await fetch('/api/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: msg })
+      });
+      if (!res.ok) throw new Error();
+      textarea.value = '';
+      document.getElementById('reply-' + id).style.display = 'none';
+      showToast('✅ Mensaje enviado');
+    } catch {
+      showToast('❌ Error al enviar');
+    }
+  }
+
+  async function updateStatus(table, id, status) {
+    try {
+      await fetch(`/api/${table}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      showToast('✅ Estado actualizado');
+      loadAll();
+    } catch {
+      showToast('❌ Error al actualizar');
+    }
+  }
+
+  async function reactivateBot(phone, table, id) {
+    try {
+      await fetch('/api/reactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+      await updateStatus(table, id, 'resolved');
+    } catch {
+      showToast('❌ Error al reactivar');
+    }
+  }
+
+  function renderOrders(orders) {
+    const el = document.getElementById('orders-list');
+    const pending = orders.filter(o => o.status === 'pending');
+    document.getElementById('badge-orders').textContent = pending.length;
+
+    if (!orders.length) {
+      el.innerHTML = '<div class="empty">No hay pedidos hoy 🎉</div>';
+      return;
+    }
+
+    el.innerHTML = orders.map(o => {
+      const items = Array.isArray(o.items) ? o.items : [];
+      const itemsHtml = items.map(i =>
+        `<div class="item-row">• ${i.nombre}${i.detalle ? ' <em>('+i.detalle+')</em>' : ''} x${i.cantidad} — $${i.precio * i.cantidad}</div>`
+      ).join('');
+
+      const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmado', done: 'Listo' }[o.status] || o.status;
+      const statusClass = 'status-' + o.status;
+
+      return `
+      <div class="card">
+        <div class="card-header">
+          <span class="order-num">${o.order_number}</span>
+          <span class="status-badge ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="info-row">👤 <strong>${o.customer_name || '—'}</strong></div>
+        ${o.type === 'delivery'
+          ? `<div class="info-row">🚚 Delivery — ${o.address || '—'}</div>
+             <div class="info-row">📞 ${o.contact_phone || o.customer_phone}</div>`
+          : `<div class="info-row">🏪 Retiro en local</div>`
+        }
+        <div class="info-row">⏱ ${timeAgo(o.created_at)}</div>
+        <div class="items-list">
+          ${itemsHtml}
+          <div class="total-row">TOTAL: $${o.total}</div>
+        </div>
+        <div class="actions">
+          <button class="btn-green" onclick="toggleReply('o${o.id}')">💬 Responder</button>
+          ${o.status === 'pending'
+            ? `<button class="btn-blue" onclick="updateStatus('orders', '${o.id}', 'confirmed')">✅ Confirmar</button>`
+            : ''}
+          ${o.status === 'confirmed'
+            ? `<button class="btn-gray" onclick="updateStatus('orders', '${o.id}', 'done')">🏁 Listo</button>`
+            : ''}
+          <button class="btn-green" onclick="reactivateBot('${o.customer_phone}', 'orders', '${o.id}')">🤖 Reactivar bot</button>
+        </div>
+        <div class="reply-box" id="reply-o${o.id}">
+          <textarea placeholder="Escribí el mensaje para el cliente..."></textarea>
+          <div class="send-row">
+            <button class="btn-green" onclick="sendReply('${o.customer_phone}', 'o${o.id}', 'orders')">Enviar</button>
+            <button class="btn-gray" onclick="toggleReply('o${o.id}')">Cancelar</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderHandoffs(handoffs) {
+    const el = document.getElementById('handoffs-list');
+    const pending = handoffs.filter(h => h.status === 'pending');
+    document.getElementById('badge-handoffs').textContent = pending.length;
+
+    if (!handoffs.length) {
+      el.innerHTML = '<div class="empty">No hay consultas pendientes 👍</div>';
+      return;
+    }
+
+    el.innerHTML = handoffs.map(h => `
+      <div class="card">
+        <div class="card-header">
+          <span style="font-weight:700">📞 ${h.customer_phone}</span>
+          <span class="status-badge ${h.status === 'pending' ? 'status-pending' : 'status-done'}">
+            ${h.status === 'pending' ? 'Pendiente' : 'Resuelto'}
+          </span>
+        </div>
+        <span class="motivo-tag">${h.motivo || 'sin motivo'}</span>
+        ${h.last_message ? `<div class="info-row">💬 <em>"${h.last_message}"</em></div>` : ''}
+        ${h.resumen ? `<div class="info-row">📋 ${h.resumen}</div>` : ''}
+        <div class="info-row">⏱ ${timeAgo(h.created_at)}</div>
+        <div class="actions">
+          <button class="btn-green" onclick="toggleReply('h${h.id}')">💬 Responder</button>
+          <button class="btn-green" onclick="reactivateBot('${h.customer_phone}', 'handoffs', '${h.id}')">🤖 Reactivar bot</button>
+          ${h.status === 'pending'
+            ? `<button class="btn-gray" onclick="updateStatus('handoffs', '${h.id}', 'resolved')">✅ Marcar resuelto</button>`
+            : ''}
+        </div>
+        <div class="reply-box" id="reply-h${h.id}">
+          <textarea placeholder="Escribí el mensaje para el cliente..."></textarea>
+          <div class="send-row">
+            <button class="btn-green" onclick="sendReply('${h.customer_phone}', 'h${h.id}', 'handoffs')">Enviar</button>
+            <button class="btn-gray" onclick="toggleReply('h${h.id}')">Cancelar</button>
+          </div>
+        </div>
+      </div>`
+    ).join('');
+  }
+
+  async function loadAll() {
+    try {
+      const [ordRes, handRes] = await Promise.all([
+        fetch('/api/orders'),
+        fetch('/api/handoffs')
+      ]);
+      const orders = await ordRes.json();
+      const handoffs = await handRes.json();
+      renderOrders(orders);
+      renderHandoffs(handoffs);
+      document.getElementById('last-update').textContent =
+        'Actualizado ' + new Date().toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      showToast('❌ Error cargando datos');
+    }
+  }
+
+  loadAll();
+  setInterval(loadAll, 30000); // auto-refresh cada 30s
+</script>
+</body>
+</html>

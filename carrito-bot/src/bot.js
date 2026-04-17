@@ -1,87 +1,71 @@
-// =============================================
-// LÓGICA DEL BOT - Carrito del Paseo
-// =============================================
-
 require("dotenv").config();
 const Groq = require("groq-sdk");
 const { LOCAL_INFO, getMenuAsText } = require("./menu");
-const { sendMessage } = require("./whatsapp");
 const supabase = require("./db");
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ─────────────────────────────────────────────
 // SESIONES
-// Estados posibles: "bot" | "handoff"
 // ─────────────────────────────────────────────
 const sessions = new Map();
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000;   // 15 min sin actividad → sesión nueva
-const HANDOFF_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → bot se reactiva solo
-const MAX_MESSAGES = 40;                       // límite antes de derivar por loop
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const HANDOFF_TIMEOUT_MS = 30 * 60 * 1000;
+const MAX_MESSAGES = 40;
 
 function getSession(phone) {
     const session = sessions.get(phone);
     if (!session) return null;
-
     const now = Date.now();
-
-    // Si está en handoff y ya pasó 1 hora → reactivar bot automáticamente
     if (session.status === "handoff" && now - session.handoffAt > HANDOFF_TIMEOUT_MS) {
-        console.log(`⏰ Reactivando bot para ${phone} (1 hora transcurrida)`);
+        console.log(`⏰ Reactivando bot para ${phone}`);
         session.status = "bot";
         session.messages = [];
         session.handoffAt = null;
-        session.handoffNotified = false;
     }
-
-    // Si la sesión expiró por inactividad (y no está en handoff) → limpiar
     if (session.status === "bot" && now - session.lastActivity > SESSION_TIMEOUT_MS) {
         sessions.delete(phone);
         return null;
     }
-
     session.lastActivity = now;
     return session;
 }
 
 function createSession(phone) {
     const session = {
-        status: "bot",         // "bot" | "handoff"
+        status: "bot",
         messages: [],
         lastActivity: Date.now(),
         handoffAt: null,
-        handoffNotified: false,
     };
     sessions.set(phone, session);
     return session;
 }
 
-// Fuerza handoff: apaga el bot para este cliente
 function setHandoff(phone) {
     const session = sessions.get(phone);
     if (session) {
         session.status = "handoff";
         session.handoffAt = Date.now();
-        session.messages = []; // limpiar historial
+        session.messages = [];
     }
 }
 
 // ─────────────────────────────────────────────
-// HORARIO
+// HORARIO (20:00 – 02:00 hora Uruguay)
 // ─────────────────────────────────────────────
 function isOpen() {
-    const now = new Date();
     const hour = parseInt(
-        now.toLocaleString("es-UY", {
+        new Date().toLocaleString("es-UY", {
             hour: "numeric",
             hour12: false,
             timeZone: "America/Montevideo",
         })
     );
-    return hour >= 9 || hour < 2; 
+    return hour >= 20 || hour < 2;
 }
 
 // ─────────────────────────────────────────────
-// NUMERACIÓN DE PEDIDOS
+// NUMERACIÓN DE PEDIDOS (se reinicia cada día)
 // ─────────────────────────────────────────────
 let orderCounter = 0;
 let lastOrderDate = new Date().toDateString();
@@ -127,13 +111,8 @@ Si el cliente pide una verdura que NO está en esa lista, decile que no tenemos 
 
 REGLA 0 — LO MÁS IMPORTANTE:
 Si el cliente pregunta algo que NO podés responder con los datos que tenés (demoras, precios de envío a direcciones específicas, ofertas, stock, si llegan a cierto barrio, etc.) NO inventes ni estimes. Tu respuesta completa debe ser EXACTAMENTE estas dos líneas, sin agregar nada más:
-IMPORTANTE: "clientePhone" debe ser el número real del cliente, siempre entre comillas, 
-nunca escribas la palabra PHONE ni ningún placeholder.
-IMPORTANTE: No escribas razonamiento interno, advertencias ni instrucciones en el mensaje 
-al cliente. Solo la frase indicada, nada más.
 Línea 1: Ahora te contacta alguien del local para responder eso. 👋
 Línea 2: DERIVAR_HUMANO:{"motivo":"consulta_sin_respuesta","clientePhone":"[número real]","resumen":"[mensaje del cliente]"}
-
 
 REGLA 1 — TONO:
 Breve y directo. Sin frases de relleno ("¡Qué buena elección!", "Con gusto", "Perfecto", "Claro que sí"). Solo lo necesario.
@@ -141,9 +120,9 @@ Breve y directo. Sin frases de relleno ("¡Qué buena elección!", "Con gusto", 
 REGLA 2 — TOMAR EL PEDIDO:
 - Anotá los productos.
 - Para productos con "+verduras a elección": preguntá "¿Con qué verduras lo querés? (lechuga, tomate, cebolla, morrón, pepino)"
-- Si el cliente menciona una verdura que no existe en nuestra lista, corregilo: "No tenemos [esa verdura]. Las disponibles son: lechuga, tomate, cebolla, morrón, pepino."
+- Si el cliente menciona una verdura que no existe en nuestra lista, corregilo.
 - Si el cliente pide extras (+panceta, +huevo, +queso): confirmá cuál y sumá $50 por cada uno.
-- Si el cliente pide sacar un ingrediente (ej: "sin cebolla", "sin tomate"): anotalo como detalle del producto. No preguntes sobre verduras si el cliente ya dijo que no quiere.
+- Si el cliente pide sacar un ingrediente: anotalo como detalle. No preguntes sobre verduras si el cliente ya dijo que no quiere.
 - Preguntá UNA SOLA VEZ si quiere agregar algo más al pedido.
 
 REGLA 3 — RETIRO O DELIVERY:
@@ -166,7 +145,7 @@ Cuando tenés TODOS los datos mostrá exactamente este formato:
 
 📋 *SOLICITUD DE PEDIDO*
 
-[nombre del producto][detalle si aplica: "sin cebolla", "con lechuga y tomate", "+panceta"] x[cant] — $[precio total con extras]
+[nombre del producto][detalle si aplica] x[cant] — $[precio total con extras]
 
 Subtotal: $XXX
 [si delivery] Envío: $50 aprox
@@ -182,12 +161,12 @@ Subtotal: $XXX
 
 REGLA 6 — CONFIRMACIÓN DEL CLIENTE (dice "sí", "si", "confirmar", "dale", "ok", "correcto", "está bien"):
 
-Respondé EXACTAMENTE en DOS mensajes separados:
+Respondé EXACTAMENTE en DOS partes separadas por una línea en blanco:
 
-MENSAJE 1 (visible para el cliente):
+PARTE 1 (visible para el cliente):
 "✅ Solicitud enviada. El personal del local te confirma el pedido en breve. 🙌"
 
-MENSAJE 2 (solo JSON, sin texto antes ni después):
+PARTE 2 (solo JSON, sin texto antes ni después):
 {
   "items": [
     {
@@ -208,8 +187,7 @@ MENSAJE 2 (solo JSON, sin texto antes ni después):
 
 REGLAS DEL JSON:
 - Debe ser JSON válido
-- No agregar texto antes ni después
-- No usar etiquetas como SOLICITUD_PEDIDO
+- No agregar texto antes ni después del JSON
 - clientePhone debe ser el número real del cliente
 - Si un campo no aplica (ej: dirección en retiro), usar null
 
@@ -223,30 +201,20 @@ Derivar SIEMPRE cuando el cliente:
 - Hace una queja o reclamo
 - Pregunta algo que no podés responder con los datos que tenés
 
-IMPORTANTE: "clientePhone" debe ser el número real del cliente, siempre entre comillas, 
-nunca escribas la palabra PHONE ni ningún placeholder.
-IMPORTANTE: No escribas razonamiento interno, advertencias ni instrucciones en el mensaje 
-al cliente. Solo la frase indicada, nada más.
-
-Tu respuesta completa debe ser EXACTAMENTE estas dos líneas, sin agregar nada más:
+Tu respuesta completa debe ser EXACTAMENTE estas dos líneas:
 Línea 1: Ahora te contacta alguien del local. 👋
-Línea 2: DERIVAR_HUMANO:{"motivo":"[motivo]","clientePhone":"[número real]"}
-
-
+Línea 2: DERIVAR_HUMANO:{"motivo":"[motivo]","clientePhone":"[número real]","resumen":"[resumen]"}
 
 REGLA 9 — NUNCA:
 - Inventes tiempos de demora, precios de envío específicos, stock, ni ningún dato que no tenés.
-- Inventes verduras o ingredientes que no están en la lista.
 - Uses frases de relleno.
 - Confirmes el pedido como aceptado. Solo enviás la SOLICITUD, el personal decide.
 - Escribas razonamiento interno o texto del sistema en el mensaje al cliente.
-- Empieces tu respuesta con frases como "No inventes", "Según mis instrucciones", 
-  "Como asistente", o cualquier texto que no sea la respuesta directa al cliente.
-- Escribas las señales técnicas SOLICITUD_PEDIDO o DERIVAR_HUMANO en el cuerpo visible del mensaje.
+- Empieces tu respuesta con frases como "No inventes", "Según mis instrucciones", "Como asistente".
 
 REGLA 10 — FORMATO DE RESPUESTA FINAL:
-Cuando envíes el JSON del pedido, debe ser el ÚNICO contenido del mensaje.
-No incluyas emojis, texto, explicaciones ni etiquetas.`;
+Cuando envíes el JSON del pedido, debe ser el ÚNICO contenido de esa parte.
+No incluyas emojis, texto, explicaciones ni etiquetas junto al JSON.`;
 
 // ─────────────────────────────────────────────
 // PROCESO PRINCIPAL
@@ -254,24 +222,19 @@ No incluyas emojis, texto, explicaciones ni etiquetas.`;
 async function processMessage(phone, messageText) {
     let session = getSession(phone);
     const isNewSession = !session;
-    if (!session) {
-        session = createSession(phone);
-    }
+    if (!session) session = createSession(phone);
 
-    // Si está en handoff → ignorar silenciosamente
     if (session.status === "handoff") {
         console.log(`🤝 Handoff activo para ${phone}, ignorando mensaje`);
         return null;
     }
 
-    // Fuera de horario
     if (!isOpen()) {
-        return "🕐 En este momento estamos cerrados.\n\nNuestro horario es de *19:00 a 02:00 hs*. ¡Volvemos esta noche! 🍔";
+        return "🕐 En este momento estamos cerrados.\n\nNuestro horario es de *20:00 a 02:00 hs*. ¡Volvemos esta noche! 🍔";
     }
 
-    // Demasiados mensajes en la sesión → derivar
     if (session.messages.length >= MAX_MESSAGES) {
-        await notifyHandoff(phone, "loop_mensajes", "La sesión superó los 40 mensajes.");
+        await saveHandoff(phone, "loop_mensajes", "La sesión superó los 40 mensajes.", messageText);
         setHandoff(phone);
         return "Parece que tuvimos muchas idas y vueltas. Te paso con el personal del local para que te ayuden mejor. 👋";
     }
@@ -289,31 +252,41 @@ async function processMessage(phone, messageText) {
         });
 
         const botReply = response.choices[0].message.content;
-
         session.messages.push({ role: "assistant", content: botReply });
 
-        // ── Pedido confirmado por el cliente → notificar al local y apagar bot ──
-        if (botReply.match(/SOLICITUD[_\s]PEDIDO[:：]/i)) {
-            await handleOrderRequest(phone, botReply);
+        // Detectar JSON de pedido confirmado (tiene "items" y "clientePhone")
+        const orderJsonMatch = botReply.match(/\{[\s\S]*?"items"[\s\S]*?"clientePhone"[\s\S]*?\}/);
+        if (orderJsonMatch) {
+            try {
+                const orderData = JSON.parse(orderJsonMatch[0]);
+                await handleOrderRequest(phone, orderData);
+            } catch (e) {
+                console.error("❌ Error parseando JSON de pedido:", e.message);
+            }
             setHandoff(phone);
         }
 
-        // ── Derivación a humano ──
-        if (botReply.match(/DERIVAR[_\s]HUMANO[:：]/i)) {
-            await handleHumanHandoff(phone, messageText, botReply);
+        // Detectar derivación a humano
+        const handoffMatch = botReply.match(/DERIVAR[_\s]HUMANO[:：]\s*(\{[\s\S]*?\})/i);
+        if (handoffMatch) {
+            try {
+                const data = JSON.parse(handoffMatch[1]);
+                await saveHandoff(phone, data.motivo || "sin_especificar", data.resumen || null, messageText);
+            } catch {
+                await saveHandoff(phone, "sin_especificar", null, messageText);
+            }
             setHandoff(phone);
         }
 
-        // Limpiar líneas técnicas antes de responder al cliente
+        // Limpiar señales técnicas antes de responder al cliente
         const cleanReply = botReply
-            .replace(/SOLICITUD[_\s]PEDIDO[:：].*$/im, "")
+            .replace(/\{[\s\S]*?"items"[\s\S]*?"clientePhone"[\s\S]*?\}/, "")
             .replace(/DERIVAR[_\s]HUMANO[:：].*$/im, "")
             .trim();
 
-        const greeting = isNewSession
-            ? "¡Hola! Soy tu asistente virtual Tito 😊\n\n"
-            : "";
+        const greeting = isNewSession ? "¡Hola! Soy tu asistente virtual Tito 😊\n\n" : "";
         return greeting + cleanReply;
+
     } catch (error) {
         console.error("❌ Error en Groq:", error.message);
         return "Lo siento, tuve un problema técnico. Intentá de nuevo o llamanos al 472 28060. 🙏";
@@ -321,96 +294,44 @@ async function processMessage(phone, messageText) {
 }
 
 // ─────────────────────────────────────────────
-// NOTIFICAR SOLICITUD DE PEDIDO AL LOCAL
+// GUARDAR PEDIDO EN SUPABASE
 // ─────────────────────────────────────────────
-
-
-
-
-async function handleOrderRequest(clientPhone, orderData) {
-    try {
-        const orderNumber = getOrderNumber();
-
-        const { error } = await supabase.from("orders").insert({
-            order_number: orderNumber,
-            customer_name: orderData.nombre,
-            customer_phone: clientPhone,
-            type: orderData.tipo,
-            address: orderData.direccion || null,
-            items: orderData.items,
-            subtotal: orderData.subtotal,
-            total: orderData.total,
-            status: "pending"
-        });
-
-        if (error) {
-            console.error("❌ Error guardando pedido:", error);
-        } else {
-            console.log(`💾 Pedido ${orderNumber} guardado en DB`);
-        }
-
-    } catch (error) {
-        console.error("❌ Error en handleOrderRequest:", error.message);
+async function handleOrderRequest(clientPhone, order) {
+    const orderNumber = getOrderNumber();
+    const { error } = await supabase.from("orders").insert({
+        order_number: orderNumber,
+        customer_name: order.nombre || null,
+        customer_phone: clientPhone,
+        contact_phone: order.telefono || null,
+        type: order.tipo || null,
+        address: order.direccion || null,
+        items: order.items || [],
+        subtotal: order.subtotal || 0,
+        total: order.total || 0,
+        status: "pending",
+    });
+    if (error) {
+        console.error("❌ Error guardando pedido:", error.message);
+    } else {
+        console.log(`💾 Pedido ${orderNumber} guardado — cliente ${clientPhone}`);
     }
 }
 
 // ─────────────────────────────────────────────
-// NOTIFICAR DERIVACIÓN A HUMANO
+// GUARDAR HANDOFF EN SUPABASE
 // ─────────────────────────────────────────────
-async function handleHumanHandoff(clientPhone, userMessage, botReply) {
-    try {
-        const match = botReply.match(/DERIVAR[_\s]HUMANO[:：]\s*(\{[\s\S]*?\})/i);
-        
-        let motivo = "sin_especificar";
-        let resumen = null;
-
-        if (match) {
-            try {
-                const data = JSON.parse(match[1]);
-                motivo = data.motivo || motivo;
-                resumen = data.resumen || null;
-            } catch (parseError) {
-                // El JSON falló pero igual derivamos — usamos lo que tenemos
-                console.warn("⚠️ JSON de derivación inválido, derivando con datos mínimos:", parseError.message);
-            }
-        }
-
-        let msg = `👤 *CLIENTE NECESITA ATENCIÓN*\n`;
-        msg += `📞 ${clientPhone}\n`;
-        msg += `🧠 Motivo: ${motivo}\n`;
-        msg += `💬 Último mensaje: "${userMessage}"\n`;
-        if (resumen) msg += `📋 Contexto: ${resumen}\n`;
-        msg += `─────────────────\n`;
-        msg += `👆 Tocá el número para atenderlo directamente.`;
-
-        await sendMessage(process.env.OWNER_PHONE, msg);
-        console.log(`📨 Derivación enviada al local (${motivo})`);
-
-    } catch (error) {
-        console.error("❌ Error en derivación:", error.message);
-        // Fallback absoluto — el parse falló pero el cliente igual necesita atención
-        await sendMessage(
-            process.env.OWNER_PHONE,
-            `👤 *CLIENTE NECESITA ATENCIÓN*\n📞 ${clientPhone}\n💬 Último mensaje: "${userMessage}"\n⚠️ Error al parsear señal de derivación.\n👆 Tocá el número para atenderlo.`
-        );
-    }
-}
-
-// ─────────────────────────────────────────────
-// NOTIFICAR HANDOFF GENÉRICO (loop, etc.)
-// ─────────────────────────────────────────────
-async function notifyHandoff(clientPhone, motivo, detalle) {
-    try {
-        let msg = `⚠️ *BOT DESACTIVADO AUTOMÁTICAMENTE*\n`;
-        msg += `📞 Cliente: ${clientPhone}\n`;
-        msg += `🧠 Motivo: ${motivo}\n`;
-        msg += `📋 Detalle: ${detalle}\n`;
-        msg += `─────────────────\n`;
-        msg += `👆 Tocá el número para atenderlo si es necesario.`;
-
-        await sendMessage(process.env.OWNER_PHONE, msg);
-    } catch (error) {
-        console.error("❌ Error notificando handoff:", error.message);
+async function saveHandoff(clientPhone, motivo, resumen, lastMessage) {
+    const { error } = await supabase.from("handoffs").insert({
+        customer_phone: clientPhone,
+        motivo,
+        resumen,
+        last_message: lastMessage,
+        status: "pending",
+    });
+    if (error) {
+        console.error("❌ Error guardando handoff:", error.message);
+    } else {
+        console.log(`📨 Handoff guardado — ${clientPhone} (${motivo})`);
     }
 }
 
