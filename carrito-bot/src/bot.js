@@ -61,7 +61,7 @@ function isOpen() {
             timeZone: "America/Montevideo",
         })
     );
-    return hour >= 20 || hour < 2;
+    return hour >= 14 || hour < 2;
 }
 
 // ─────────────────────────────────────────────
