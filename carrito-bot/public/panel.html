@@ -179,6 +179,29 @@
     .status-bot { background: #e8f5e9; color: #2e7d32; }
     .status-handoff { background: #fff3cd; color: #856404; }
 
+    .handoff-flag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #f59e0b;
+      color: white;
+      font-size: 11px;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-left: 4px;
+      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+      animation: handoff-pulse 1.6s infinite;
+      cursor: help;
+    }
+    @keyframes handoff-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+      70%  { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+
     /* ──── CHAT ──── */
     .chat {
       display: flex;
@@ -525,7 +548,7 @@
           <div class="avatar">${initials(c.customer_name, c.customer_phone)}</div>
           <div class="conv-body">
             <div class="conv-top">
-              <div class="conv-name">${escapeHtml(c.customer_name || c.customer_phone)}</div>
+              <div class="conv-name">${escapeHtml(c.customer_name || c.customer_phone)}${c.status === "handoff" ? `<span class="handoff-flag" title="En modo handoff — el bot está pausado">!</span>` : ""}</div>
               <div class="conv-time">${timeAgo(c.last_message_at)}</div>
             </div>
             <div class="conv-bottom">
