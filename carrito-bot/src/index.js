@@ -18,10 +18,26 @@ const supabase = require("./db");
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "../public")));
 
 const LOCAL_ADDRESS = "Zorrilla de San Martín 1835, Paysandú";
 const processedMessages = new Set();
+
+// ─────────────────────────────────────────────
+// AUTH BÁSICA PARA PANEL Y API
+// ─────────────────────────────────────────────
+const PANEL_USER = process.env.PANEL_USER || "admin";
+const PANEL_PASS = process.env.PANEL_PASS || "123456";
+
+function basicAuth(req, res, next) {
+    const header = req.headers.authorization || "";
+    const [scheme, encoded] = header.split(" ");
+    if (scheme === "Basic" && encoded) {
+        const [user, pass] = Buffer.from(encoded, "base64").toString().split(":");
+        if (user === PANEL_USER && pass === PANEL_PASS) return next();
+    }
+    res.set("WWW-Authenticate", 'Basic realm="Panel Carrito", charset="UTF-8"');
+    res.status(401).send("Autenticación requerida");
+}
 
 // ─────────────────────────────────────────────
 // WEBHOOK WHATSAPP
@@ -112,9 +128,11 @@ async function handleIncomingMessage(message) {
 // ─────────────────────────────────────────────
 // PANEL
 // ─────────────────────────────────────────────
-app.get("/panel", (req, res) => {
+app.use("/api", basicAuth);
+app.get("/panel", basicAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "../public/panel.html"));
 });
+app.use(basicAuth, express.static(path.join(__dirname, "../public")));
 
 // ─────────────────────────────────────────────
 // API — CONVERSACIONES
