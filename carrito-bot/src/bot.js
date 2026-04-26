@@ -132,7 +132,9 @@ function getOrderNumber() {
 // ─────────────────────────────────────────────
 // SYSTEM PROMPT
 // ─────────────────────────────────────────────
-const SYSTEM_PROMPT = `Sos el asistente de pedidos de *Carrito del Paseo*, Paysandú, Uruguay.
+async function buildSystemPrompt() {
+    const menuText = await getMenuAsText();
+    return `Sos el asistente de pedidos de *Carrito del Paseo*, Paysandú, Uruguay.
 Tu único rol es tomar pedidos y responder preguntas básicas del local.
 
 ---
@@ -146,7 +148,7 @@ Tu único rol es tomar pedidos y responder preguntas básicas del local.
 ---
 
 📋 MENÚ (precios en pesos uruguayos):
-${getMenuAsText()}
+${menuText}
 
 EXTRAS disponibles: +panceta, +huevo frito, +queso extra — cada uno $50 adicional.
 
@@ -264,6 +266,7 @@ REGLA 9 — NUNCA:
 REGLA 10 — FORMATO DE RESPUESTA FINAL:
 Cuando envíes el JSON del pedido, debe ser el ÚNICO contenido de esa parte.
 No incluyas emojis, texto, explicaciones ni etiquetas junto al JSON.`;
+}
 
 // ─────────────────────────────────────────────
 // PROCESO PRINCIPAL
@@ -304,6 +307,7 @@ async function processMessage(phone, messageText) {
     session.messages.push({ role: "user", content: messageText });
 
     try {
+        const SYSTEM_PROMPT = await buildSystemPrompt();
         const response = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
             messages: [
