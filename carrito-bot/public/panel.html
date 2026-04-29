@@ -462,6 +462,10 @@
       <h1>Carrito del Paseo</h1>
       <button class="refresh-btn" onclick="loadConversations(true)" title="Actualizar">↻</button>
     </div>
+    <div id="bot-toggle-bar" style="padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);font-size:13px;">
+      <span id="bot-status-label" style="flex:1">Cargando...</span>
+      <button id="bot-toggle-btn" onclick="toggleBot()" style="border:none;border-radius:12px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">...</button>
+    </div>
     <div class="search">
       <input type="text" placeholder="Buscar chat..." oninput="filterConvs(this.value)" />
     </div>
@@ -652,10 +656,19 @@
     const tag = m.direction === "in" ? "" :
                 m.direction === "bot" ? '<span class="sender-tag">🤖 Bot</span>' :
                 '<span class="sender-tag">👤 Vos</span>';
+    let body = "";
+    if (m.msg_type === "image" && m.media_url) {
+      body = `<a href="${escapeHtml(m.media_url)}" target="_blank">
+        <img src="${escapeHtml(m.media_url)}" style="max-width:220px;max-height:220px;border-radius:6px;display:block;cursor:pointer;" />
+      </a>`;
+      if (m.content) body += `<div style="margin-top:4px;font-size:13px;">${escapeHtml(m.content)}</div>`;
+    } else {
+      body = escapeHtml(m.content);
+    }
     return `
       <div class="msg-row ${m.direction}">
         <div class="bubble">
-          ${tag}${escapeHtml(m.content)}
+          ${tag}${body}
           <span class="time">${formatTime(m.created_at)}</span>
         </div>
       </div>`;
@@ -763,13 +776,11 @@
   }
 
   async function confirmOrder(id) {
-    const minutes = prompt("¿En cuántos minutos estará listo?", "30");
-    if (minutes === null) return;
     try {
       const res = await fetch(`/api/orders/${id}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minutes: parseInt(minutes) || 30 }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error();
       showToast("✅ Pedido confirmado y avisado al cliente");
@@ -823,7 +834,50 @@
     }
   }
 
+  // ──── Bot toggle
+  async function loadBotStatus() {
+    try {
+      const res = await fetch("/api/bot/status");
+      const { enabled } = await res.json();
+      renderBotToggle(enabled);
+    } catch {}
+  }
+
+  function renderBotToggle(enabled) {
+    const label = document.getElementById("bot-status-label");
+    const btn = document.getElementById("bot-toggle-btn");
+    if (enabled) {
+      label.innerHTML = `<span style="color:#2e7d32;font-weight:600;">🟢 Bot activo</span> — respondiendo automáticamente`;
+      btn.textContent = "Apagar bot";
+      btn.style.background = "#dc3545";
+      btn.style.color = "white";
+    } else {
+      label.innerHTML = `<span style="color:#dc3545;font-weight:600;">🔴 Bot apagado</span> — respondé vos desde el panel`;
+      btn.textContent = "Encender bot";
+      btn.style.background = "#25d366";
+      btn.style.color = "white";
+    }
+  }
+
+  async function toggleBot() {
+    try {
+      const res = await fetch("/api/bot/status");
+      const { enabled } = await res.json();
+      const newState = !enabled;
+      await fetch("/api/bot/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newState }),
+      });
+      renderBotToggle(newState);
+      showToast(newState ? "🟢 Bot encendido" : "🔴 Bot apagado — respondé vos desde el panel");
+    } catch {
+      showToast("❌ Error al cambiar estado del bot");
+    }
+  }
+
   loadConversations();
+  loadBotStatus();
   setInterval(loadConversations, 5000);
   setInterval(() => state.activeConv && loadChat(), 3000);
 </script>

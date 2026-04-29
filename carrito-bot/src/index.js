@@ -11,6 +11,8 @@ const {
     saveMessage,
     setConversationStatus,
     clearLLMSession,
+    isBotEnabled,
+    setBotEnabled,
 } = require("./bot");
 const { sendMessage, downloadMedia, markAsRead } = require("./whatsapp");
 const { transcribeAudio } = require("./transcribe");
@@ -106,10 +108,33 @@ async function handleIncomingMessage(message) {
                 return;
             }
         }
+    } else if (type === "image") {
+        const mediaId = message.image?.id;
+        if (mediaId) {
+            try {
+                const { buffer, mimeType } = await downloadMedia(mediaId);
+                const ext = mimeType?.includes("png") ? "png" : "jpg";
+                const fileName = `${from}_${Date.now()}.${ext}`;
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from("whatsapp-media")
+                    .upload(fileName, buffer, { contentType: mimeType || "image/jpeg", upsert: false });
+                if (uploadError) throw uploadError;
+                const { data: { publicUrl } } = supabase.storage
+                    .from("whatsapp-media")
+                    .getPublicUrl(fileName);
+                await saveMessage(from, "in", message.image?.caption || "", { msgType: "image", mediaUrl: publicUrl });
+                const caption = message.image?.caption ? ` con el texto: "${message.image.caption}"` : "";
+                await sendMessage(from, `📷 Foto recibida${caption}. El personal la va a ver en seguida. 👍`);
+            } catch (e) {
+                console.error("❌ Error procesando imagen:", e.message);
+                await sendMessage(from, "📷 Recibimos tu imagen pero hubo un problema al guardarla. Intentá de nuevo. 🙏");
+            }
+        }
+        return;
     } else {
-        const unsupported = ["image", "video", "document", "sticker", "location", "reaction"];
+        const unsupported = ["video", "document", "sticker", "location", "reaction"];
         if (unsupported.includes(type)) {
-            await sendMessage(from, "Solo proceso mensajes de texto y audios. ¿En qué te puedo ayudar? 😊");
+            await sendMessage(from, "Solo proceso mensajes de texto, audios e imágenes. ¿En qué te puedo ayudar? 😊");
         }
         return;
     }
@@ -305,6 +330,22 @@ app.post("/api/orders/:id/cancel", async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// ─────────────────────────────────────────────
+// API — BOT ON/OFF
+// ─────────────────────────────────────────────
+app.get("/api/bot/status", async (req, res) => {
+    const enabled = await isBotEnabled();
+    res.json({ enabled });
+});
+
+app.post("/api/bot/toggle", async (req, res) => {
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") return res.status(400).json({ error: "Campo 'enabled' requerido (boolean)" });
+    await setBotEnabled(enabled);
+    console.log(`${enabled ? "🟢" : "🔴"} Bot ${enabled ? "activado" : "desactivado"} manualmente`);
+    res.json({ ok: true, enabled });
 });
 
 // ─────────────────────────────────────────────

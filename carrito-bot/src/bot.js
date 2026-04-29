@@ -36,14 +36,16 @@ function clearLLMSession(phone) {
 // ─────────────────────────────────────────────
 // HELPERS DB — conversaciones y mensajes
 // ─────────────────────────────────────────────
-async function saveMessage(phone, direction, content) {
-    if (!content) return;
+async function saveMessage(phone, direction, content, { msgType = 'text', mediaUrl = null } = {}) {
+    if (!content && !mediaUrl) return;
     await supabase.from("messages").insert({
         customer_phone: phone,
         direction,
-        content,
+        content: content || '',
+        msg_type: msgType,
+        media_url: mediaUrl,
     });
-    await upsertConversationMeta(phone, direction, content);
+    await upsertConversationMeta(phone, direction, content || '📷 Imagen');
 }
 
 async function upsertConversationMeta(phone, direction, content) {
@@ -72,6 +74,22 @@ async function upsertConversationMeta(phone, direction, content) {
             unread_count: direction === "in" ? 1 : 0,
         });
     }
+}
+
+async function isBotEnabled() {
+    const { data } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'bot_enabled')
+        .maybeSingle();
+    return data?.value !== 'false';
+}
+
+async function setBotEnabled(enabled) {
+    await supabase
+        .from('settings')
+        .update({ value: enabled ? 'true' : 'false' })
+        .eq('key', 'bot_enabled');
 }
 
 async function getConversationStatus(phone) {
@@ -213,12 +231,12 @@ Subtotal: $XXX
 
 REGLA 6 — CONFIRMACIÓN DEL CLIENTE (dice "sí", "si", "confirmar", "dale", "ok", "correcto", "está bien"):
 
-Respondé EXACTAMENTE en DOS partes separadas por una línea en blanco:
+Respondé EXACTAMENTE en DOS partes separadas por una línea en blanco. NADA MÁS — no agregues preguntas, comentarios ni texto de ningún tipo después del JSON:
 
 PARTE 1 (visible para el cliente):
 "✅ Recibimos tu solicitud. Ahora el personal del local revisa el pedido y te confirma en breve. 🙌"
 
-PARTE 2 (solo JSON, sin texto antes ni después):
+PARTE 2 (solo JSON, sin texto antes ni después — y NADA después del JSON):
 {
   "items": [
     {
@@ -263,6 +281,7 @@ REGLA 9 — NUNCA:
 - Confirmes el pedido como aceptado. Solo enviás la SOLICITUD, el personal decide.
 - Escribas razonamiento interno o texto del sistema en el mensaje al cliente.
 - Empieces tu respuesta con frases como "No inventes", "Según mis instrucciones", "Como asistente".
+- Preguntes al cliente cuánto tiempo tiene o cuándo quiere el pedido. Eso lo maneja el personal.
 
 REGLA 10 — FORMATO DE RESPUESTA FINAL:
 Cuando envíes el JSON del pedido, debe ser el ÚNICO contenido de esa parte.
@@ -276,7 +295,14 @@ async function processMessage(phone, messageText) {
     // 1. Persistir siempre el mensaje entrante (aunque estemos en handoff)
     await saveMessage(phone, "in", messageText);
 
-    // 2. Chequear estado real desde DB
+    // 2. Chequear si el bot está habilitado globalmente
+    const botEnabled = await isBotEnabled();
+    if (!botEnabled) {
+        console.log(`🔴 Bot desactivado — mensaje de ${phone} guardado para el panel`);
+        return null;
+    }
+
+    // 3. Chequear estado real desde DB
     const status = await getConversationStatus(phone);
 
     // Si hay humano atendiendo, el bot no responde — pero el msg ya quedó guardado.
@@ -322,6 +348,7 @@ async function processMessage(phone, messageText) {
         session.messages.push({ role: "assistant", content: botReply });
 
         // Detectar JSON de pedido confirmado
+        let cleanReply;
         const orderJsonMatch = botReply.match(/\{[\s\S]*?"items"[\s\S]*?"clientePhone"[\s\S]*?\}/);
         if (orderJsonMatch) {
             try {
@@ -332,19 +359,20 @@ async function processMessage(phone, messageText) {
                 console.error("❌ Error parseando JSON de pedido:", e.message);
             }
             await setConversationStatus(phone, "handoff");
-        }
+            // Solo usar el texto ANTES del JSON — ignorar cualquier cosa extra que el LLM agregue después
+            cleanReply = botReply.slice(0, orderJsonMatch.index).trim();
+        } else {
+            // Detectar derivación
+            const handoffMatch = botReply.match(/DERIVAR[_\s]HUMANO[:：]\s*(\{[\s\S]*?\})/i);
+            if (handoffMatch) {
+                await setConversationStatus(phone, "handoff");
+            }
 
-        // Detectar derivación
-        const handoffMatch = botReply.match(/DERIVAR[_\s]HUMANO[:：]\s*(\{[\s\S]*?\})/i);
-        if (handoffMatch) {
-            await setConversationStatus(phone, "handoff");
+            // Limpiar señales técnicas
+            cleanReply = botReply
+                .replace(/DERIVAR[_\s]HUMANO[:：].*$/im, "")
+                .trim();
         }
-
-        // Limpiar señales técnicas
-        const cleanReply = botReply
-            .replace(/\{[\s\S]*?"items"[\s\S]*?"clientePhone"[\s\S]*?\}/, "")
-            .replace(/DERIVAR[_\s]HUMANO[:：].*$/im, "")
-            .trim();
 
         const greeting = isNewSession ? "¡Hola! Soy tu asistente virtual Tito 😊\n\n" : "";
         const finalReply = greeting + cleanReply;
@@ -391,4 +419,6 @@ module.exports = {
     saveMessage,
     setConversationStatus,
     clearLLMSession,
+    isBotEnabled,
+    setBotEnabled,
 };
