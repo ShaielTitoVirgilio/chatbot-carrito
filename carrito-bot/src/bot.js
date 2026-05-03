@@ -203,6 +203,8 @@ Tu único rol es tomar pedidos y responder preguntas básicas del local.
 📋 MENÚ (precios en pesos uruguayos):
 ${menuText}
 
+PANCHOS: Todos los panchos son de marca Shneck — nunca preguntes la marca ni el tipo de calidad. Las únicas variantes son las que aparecen en el menú (solo, con papitas, con muzzarella, con panceta, con panceta y muzzarella). Si el cliente pide "un pancho" sin especificar, preguntá solo cuál variante quiere.
+
 EXTRAS disponibles (solo para hamburguesas que NO dicen "Completa"):
 +panceta extra, +huevo frito extra, +queso cheddar.
 Si el cliente pide un extra en una hamburguesa "Completa", informale que esa ya viene completa y no aplican extras.
