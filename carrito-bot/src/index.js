@@ -308,28 +308,16 @@ app.post("/api/orders/:id/ready", async (req, res) => {
     }
 });
 
-app.post("/api/orders/:id/cancel", async (req, res) => {
+app.post("/api/orders/:id/takeover", async (req, res) => {
     const { data: order, error } = await supabase
         .from("orders")
-        .select("*")
+        .select("customer_phone")
         .eq("id", req.params.id)
         .single();
     if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
 
-    const reason = req.body?.reason?.trim();
-    let msg = `❌ *Pedido ${order.order_number} cancelado*\n\n`;
-    msg += reason
-        ? `Motivo: ${reason}\n\nSi querés podemos arreglar algo distinto.`
-        : `No pudimos tomar tu pedido esta vez. Disculpá las molestias 🙏`;
-
-    try {
-        await sendMessage(order.customer_phone, msg);
-        await saveMessage(order.customer_phone, "human", msg);
-        await supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id);
-        res.json({ ok: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    await setConversationStatus(order.customer_phone, "handoff");
+    res.json({ ok: true });
 });
 
 // ─────────────────────────────────────────────

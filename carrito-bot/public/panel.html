@@ -304,7 +304,7 @@
     }
     .order-btn.confirm { background: #0d6efd; color: white; }
     .order-btn.ready { background: var(--green); color: white; }
-    .order-btn.cancel { background: #dc3545; color: white; }
+    .order-btn.takeover { background: #f59e0b; color: white; }
 
     .messages {
       flex: 1;
@@ -647,7 +647,7 @@
           ${o.status === "confirmed"
             ? `<button class="order-btn ready" onclick="markOrderReady('${o.id}')">🏁 Marcar listo</button>`
             : ""}
-          <button class="order-btn cancel" onclick="cancelOrder('${o.id}')">❌ Cancelar</button>
+          <button class="order-btn takeover" onclick="takeOverOrder('${o.id}')">🙋 Responder manual</button>
         </div>
       </div>`;
   }
@@ -804,17 +804,11 @@
     }
   }
 
-  async function cancelOrder(id) {
-    const reason = prompt("¿Motivo? (opcional)", "");
-    if (reason === null) return;
+  async function takeOverOrder(id) {
     try {
-      const res = await fetch(`/api/orders/${id}/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
+      const res = await fetch(`/api/orders/${id}/takeover`, { method: "POST" });
       if (!res.ok) throw new Error();
-      showToast("❌ Pedido cancelado");
+      showToast("🙋 Tomaste el chat — el pedido sigue activo");
       await loadChat();
       await loadConversations();
     } catch {
