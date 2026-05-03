@@ -118,6 +118,37 @@ async function setCustomerName(phone, name) {
 }
 
 // ─────────────────────────────────────────────
+// CLIENTES — persistencia de nombre y dirección
+// ─────────────────────────────────────────────
+async function getCustomer(phone) {
+    const { data } = await supabase
+        .from("customers")
+        .select("nombre, direccion")
+        .eq("phone", phone)
+        .maybeSingle();
+    return data || null;
+}
+
+async function upsertCustomer(phone, { nombre, direccion } = {}) {
+    const update = {};
+    if (nombre) update.nombre = nombre;
+    if (direccion) update.direccion = direccion;
+    if (!Object.keys(update).length) return;
+
+    const { data: existing } = await supabase
+        .from("customers")
+        .select("nombre, direccion")
+        .eq("phone", phone)
+        .maybeSingle();
+
+    if (existing) {
+        await supabase.from("customers").update(update).eq("phone", phone);
+    } else {
+        await supabase.from("customers").insert({ phone, ...update });
+    }
+}
+
+// ─────────────────────────────────────────────
 // HORARIO (14:00 – 02:00 hora Uruguay)
 // ─────────────────────────────────────────────
 function isOpen() {
@@ -150,9 +181,12 @@ function getOrderNumber() {
 // ─────────────────────────────────────────────
 // SYSTEM PROMPT
 // ─────────────────────────────────────────────
-async function buildSystemPrompt() {
+async function buildSystemPrompt(customerData = null) {
     const menuText = await getMenuAsText();
-    return `Sos el asistente de pedidos de *Carrito del Paseo*, Paysandú, Uruguay.
+    const clienteConocido = customerData
+        ? `\n---\n👤 DATOS GUARDADOS DEL CLIENTE:\n- Nombre: ${customerData.nombre || "desconocido"}\n- Dirección: ${customerData.direccion || "no tiene"}\n---\n`
+        : "";
+    return `Sos el asistente de pedidos de *Carrito del Paseo*, Paysandú, Uruguay.${clienteConocido}
 Tu único rol es tomar pedidos y responder preguntas básicas del local.
 
 ---
@@ -161,7 +195,8 @@ Tu único rol es tomar pedidos y responder preguntas básicas del local.
 - Teléfono: ${LOCAL_INFO.telefono}
 - Horarios: ${LOCAL_INFO.horarios}
 - Delivery: ${LOCAL_INFO.delivery.zona}. Costo base: $${LOCAL_INFO.delivery.costo} (puede variar según distancia)
-- Pago delivery: solo efectivo
+- Pago delivery: efectivo o transferencia
+- Pago retiro en local: efectivo o débito
 - Retiro en local: sin costo adicional
 ---
 
@@ -204,13 +239,27 @@ Cuando el pedido esté completo, preguntá:
 2️⃣ Envío a domicilio"
 
 REGLA 4 — DATOS NECESARIOS:
-- RETIRAR: preguntá solo "¿A qué nombre va el pedido?"
+- RETIRAR: preguntá solo "¿A qué nombre va el pedido?" Una vez que tenés el nombre, preguntá: "¿Pagás con efectivo o débito?"
 - DELIVERY: pedí los 3 datos juntos:
   "Necesito estos datos:
   • Nombre
   • Dirección
   • Teléfono de contacto"
-  No avances hasta tener los 3. Si falta alguno, pedí solo el que falta.
+  No avances hasta tener los 3. Si falta alguno, pedí solo el que falta. Una vez que los tenés, preguntá: "¿Pagás con efectivo o transferencia?" (dejá en claro que efectivo es la opción por defecto si no responde).
+
+MEDIOS DE PAGO VÁLIDOS:
+- Retiro: efectivo o débito. Si el cliente pide otro medio (tarjeta crédito, transferencia, MercadoPago, etc.), hacé handoff:
+  Línea 1: Ahora te contacta alguien del local para coordinar el pago. 👋
+  Línea 2: DERIVAR_HUMANO:{"motivo":"medio_de_pago_no_disponible","clientePhone":"[número real]","resumen":"El cliente quiere pagar con [medio solicitado] en retiro"}
+- Delivery: efectivo o transferencia. Si el cliente pide otro medio, hacé handoff igual.
+
+REGLA 4B — DATOS GUARDADOS DEL CLIENTE:
+Si tenés DATOS GUARDADOS DEL CLIENTE (sección al inicio del prompt):
+- Si elige DELIVERY y tiene dirección guardada, preguntá: "¿Te lo enviamos a [dirección] a nombre de [nombre]? Si querés cambiarlo, decime."
+  - Si confirma, usá esos datos directamente sin pedir nada más.
+  - Si quiere cambiar, pedí el dato que quiere cambiar.
+- Si elige DELIVERY y tiene nombre pero no dirección, pedí solo la dirección (y el teléfono si no lo tenés).
+- Si elige RETIRO y tiene nombre guardado, preguntá: "¿Va a nombre de [nombre]?" — si confirma, usalo directamente.
 
 REGLA 5 — RESUMEN:
 Cuando tenés TODOS los datos mostrá exactamente este formato:
@@ -225,7 +274,7 @@ Subtotal: $XXX
 
 [si retiro] 🏪 Retiro en local — A nombre de: [nombre]
 [si delivery] 🚚 Envío a: [dirección] — Contacto: [nombre] / [teléfono]
-💵 Pago: Efectivo
+💵 Pago: [medio de pago elegido]
 
 ¿Los datos son correctos?
 ✅ Respondé *SÍ* para enviar la solicitud al local
@@ -254,6 +303,7 @@ PARTE 2 (solo JSON, sin texto antes ni después — y NADA después del JSON):
   "direccion": "...",
   "nombre": "...",
   "telefono": "...",
+  "pago": "efectivo" o "debito" o "transferencia",
   "clientePhone": "NUMERO_REAL"
 }
 
@@ -320,7 +370,10 @@ async function processMessage(phone, messageText) {
         return msg;
     }
 
-    // 3. Sesión LLM (contexto de conversación)
+    // 3. Buscar datos guardados del cliente
+    const customerData = await getCustomer(phone);
+
+    // 4. Sesión LLM (contexto de conversación)
     let session = getLLMSession(phone);
     const isNewSession = !session;
     if (!session) session = createLLMSession(phone);
@@ -336,7 +389,7 @@ async function processMessage(phone, messageText) {
     session.messages.push({ role: "user", content: messageText });
 
     try {
-        const SYSTEM_PROMPT = await buildSystemPrompt();
+        const SYSTEM_PROMPT = await buildSystemPrompt(customerData);
         const response = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
             messages: [
@@ -407,6 +460,7 @@ async function handleOrderRequest(clientPhone, order) {
         items: order.items || [],
         subtotal: order.subtotal || 0,
         total: order.total || 0,
+        payment_method: order.pago || "efectivo",
         status: "pending",
     });
     if (error) {
@@ -414,6 +468,12 @@ async function handleOrderRequest(clientPhone, order) {
     } else {
         console.log(`💾 Pedido ${orderNumber} guardado — cliente ${clientPhone}`);
     }
+
+    // Persistir datos del cliente para futuros pedidos
+    await upsertCustomer(clientPhone, {
+        nombre: order.nombre || null,
+        direccion: order.tipo === "delivery" ? (order.direccion || null) : null,
+    });
 }
 
 module.exports = {
