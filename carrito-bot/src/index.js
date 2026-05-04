@@ -154,6 +154,9 @@ async function handleIncomingMessage(message) {
 // PANEL
 // ─────────────────────────────────────────────
 app.use("/api", basicAuth);
+app.get("/privacidad", (req, res) => {
+    res.sendFile(path.join(__dirname, "../public/privacidad.html"));
+});
 app.get("/panel", basicAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "../public/panel.html"));
 });
@@ -260,12 +263,18 @@ app.post("/api/orders/:id/confirm", async (req, res) => {
 
     let msg = `✅ *Pedido ${order.order_number} confirmado!*\n\n`;
     msg += `Hola ${order.customer_name || ""}, ya lo estamos preparando.\n\n`;
+    const paymentLabel = {
+        efectivo: "efectivo",
+        transferencia: "transferencia",
+        debito: "débito",
+    }[order.payment_method] || "efectivo";
+
     if (order.type === "delivery") {
         msg += `🚚 Te lo enviamos a: ${order.address}\n`;
-        msg += `💵 Total a pagar: $${order.total} (efectivo)`;
+        msg += `💵 Total a pagar: $${order.total} (${paymentLabel})`;
     } else {
         msg += `🏪 Podés retirar en: ${LOCAL_ADDRESS}\n`;
-        msg += `💵 Total: $${order.total}`;
+        msg += `💵 Total: $${order.total} (${paymentLabel})`;
     }
 
     try {
