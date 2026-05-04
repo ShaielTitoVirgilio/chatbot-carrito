@@ -157,6 +157,15 @@ app.use("/api", basicAuth);
 app.get("/privacidad", (req, res) => {
     res.sendFile(path.join(__dirname, "../public/privacidad.html"));
 });
+app.post("/eliminar-datos", (req, res) => {
+    // Meta envía signed_request con el user_id a eliminar
+    // Para una app de WhatsApp Business sin login de Facebook, no hay datos de usuario de Facebook
+    const confirmationCode = `del_${Date.now()}`;
+    res.json({
+        url: "https://chatbot-carrito-production.up.railway.app/privacidad",
+        confirmation_code: confirmationCode,
+    });
+});
 app.get("/panel", basicAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "../public/panel.html"));
 });
