@@ -258,16 +258,13 @@ app.post("/api/orders/:id/confirm", async (req, res) => {
         .single();
     if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
 
-    const minutes = req.body?.minutes || 30;
     let msg = `✅ *Pedido ${order.order_number} confirmado!*\n\n`;
     msg += `Hola ${order.customer_name || ""}, ya lo estamos preparando.\n\n`;
     if (order.type === "delivery") {
         msg += `🚚 Te lo enviamos a: ${order.address}\n`;
-        msg += `⏱ Tiempo estimado: ~${minutes} minutos\n`;
         msg += `💵 Total a pagar: $${order.total} (efectivo)`;
     } else {
         msg += `🏪 Podés retirar en: ${LOCAL_ADDRESS}\n`;
-        msg += `⏱ Estará listo en ~${minutes} minutos\n`;
         msg += `💵 Total: $${order.total}`;
     }
 
@@ -316,7 +313,10 @@ app.post("/api/orders/:id/takeover", async (req, res) => {
         .single();
     if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
 
-    await setConversationStatus(order.customer_phone, "handoff");
+    await Promise.all([
+        supabase.from("orders").update({ status: "manual" }).eq("id", req.params.id),
+        setConversationStatus(order.customer_phone, "handoff"),
+    ]);
     res.json({ ok: true });
 });
 
