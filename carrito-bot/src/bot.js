@@ -152,14 +152,17 @@ async function upsertCustomer(phone, { nombre, direccion } = {}) {
 // HORARIO (14:00 – 02:00 hora Uruguay)
 // ─────────────────────────────────────────────
 function isOpen() {
-    const hour = parseInt(
-        new Date().toLocaleString("es-UY", {
-            hour: "numeric",
-            hour12: false,
-            timeZone: "America/Montevideo",
-        })
-    );
-    return hour >= 14 || hour < 2;
+    const now = new Date().toLocaleString("es-UY", {
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+        timeZone: "America/Montevideo",
+    });
+    const [hour, minute] = now.split(":").map(Number);
+    const totalMinutes = hour * 60 + minute;
+    const openTime = 18 * 60 + 35;  // 18:35
+    const closeTime = 2 * 60;        // 02:00
+    return totalMinutes >= openTime || totalMinutes < closeTime;
 }
 
 // ─────────────────────────────────────────────
@@ -370,7 +373,16 @@ async function processMessage(phone, messageText) {
 
     // Fuera de horario
     if (!isOpen()) {
-        const msg = "🕐 En este momento estamos cerrados.\n\nNuestro horario es de *14:00 a 02:00 hs*. ¡Volvemos esta noche! 🍔";
+        const now = new Date().toLocaleString("es-UY", {
+            hour: "numeric",
+            minute: "numeric",
+            hour12: false,
+            timeZone: "America/Montevideo",
+        });
+        const [hour] = now.split(":").map(Number);
+        const msg = hour >= 2 && hour < 18
+            ? "🕐 En este momento estamos cerrados.\n\nAbrimos a las *18:30 hs*. ¡Hasta esta noche! 🍔"
+            : "🕐 Ya cerramos por esta noche.\n\nMañana abrimos a las *18:30 hs*. ¡Hasta entonces! 🍔";
         await saveMessage(phone, "bot", msg);
         return msg;
     }
