@@ -441,6 +441,100 @@
       padding: 0 6px;
     }
 
+    /* ──── TABS ──── */
+    .tabs { display: flex; gap: 4px; padding: 8px 10px 0; background: #f0f2f5; }
+    .tab {
+      flex: 1; padding: 9px 6px; border: none; background: transparent;
+      border-radius: 10px 10px 0 0; cursor: pointer;
+      font-size: 13px; font-weight: 700; color: var(--text-muted);
+    }
+    .tab.active { background: white; color: var(--text); }
+    .tab .badge {
+      display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 5px;
+      border-radius: 9px; background: var(--red); color: white;
+      font-size: 11px; line-height: 18px;
+    }
+
+    /* ──── TABLERO DE PEDIDOS ──── */
+    .board { flex: 1; overflow-y: auto; background: var(--bg); padding: 10px; }
+    .board-group { margin-bottom: 18px; }
+    .board-group h3 {
+      font-size: 12px; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--text-muted); margin-bottom: 8px; padding-left: 4px;
+    }
+    .board-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 14px; }
+
+    .ocard {
+      background: white; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1); border-left: 4px solid var(--green);
+    }
+    .ocard.confirmed { border-left-color: #0d6efd; }
+    .ocard.ready, .ocard.on_the_way { border-left-color: #9c27b0; }
+    .ocard.rejected { border-left-color: #dc3545; opacity: .7; }
+    .ocard.delivered, .ocard.done { border-left-color: #9e9e9e; opacity: .65; }
+    .ocard.urgente { border-left-color: var(--red); box-shadow: 0 0 0 2px rgba(220,53,69,.18); }
+
+    .oc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+    .oc-num { font-weight: 800; font-size: 16px; }
+    .oc-chan { font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 700; }
+    .oc-chan.web { background: #E3F2FD; color: #0b5394; }
+    .oc-chan.whatsapp { background: #E8F5E9; color: #2e7d32; }
+    .oc-age { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+    .oc-age.urgente { color: var(--red); font-weight: 700; }
+
+    .oc-cli { font-size: 13.5px; margin: 3px 0; }
+    .oc-cli strong { font-weight: 700; }
+    .oc-meta { font-size: 12.5px; color: var(--text-muted); margin: 2px 0; }
+    .oc-meta a { color: var(--green-dark); }
+
+    .oc-items { background: #f8f9fa; border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 13px; }
+    .oc-item { padding: 3px 0; }
+    .oc-item + .oc-item { border-top: 1px dashed #e4e4e4; }
+    .oc-item-opts { color: var(--text-muted); font-size: 11.5px; padding-left: 12px; }
+    .oc-item-nota { color: #b26a00; font-size: 11.5px; padding-left: 12px; font-style: italic; }
+    .oc-nota-gral {
+      background: #fff8e1; border: 1px solid #ffe0a3; border-radius: 8px;
+      padding: 7px 10px; margin: 6px 0; font-size: 12.5px; color: #7a5b00;
+    }
+
+    .oc-tot { display: flex; justify-content: space-between; font-weight: 800; font-size: 14px; padding-top: 4px; }
+
+    .oc-fee { display: flex; gap: 8px; align-items: flex-end; margin: 10px 0 6px; flex-wrap: wrap; }
+    .oc-fee label { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px; }
+    .oc-fee input {
+      width: 84px; padding: 7px 9px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+    }
+    .oc-fee input:focus { outline: none; border-color: var(--green); }
+    .oc-fee-total { font-size: 13px; color: var(--text-muted); padding-bottom: 8px; }
+    .oc-fee-total b { color: var(--text); font-size: 15px; }
+
+    .oc-btns { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .oc-btn {
+      border: none; border-radius: 8px; padding: 9px 14px;
+      font-size: 12.5px; font-weight: 700; cursor: pointer;
+    }
+    .oc-btn.confirm { background: #0d6efd; color: white; }
+    .oc-btn.ready { background: #9c27b0; color: white; }
+    .oc-btn.done { background: var(--green); color: white; }
+    .oc-btn.reject { background: #f1f1f1; color: #b02a37; }
+    .oc-btn.wa { background: #25d366; color: white; }
+    .oc-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+    .view-hidden { display: none !important; }
+    .board.view { display: block; }
+    .board.view-hidden { display: none !important; }
+
+    .sound-bar {
+      display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+      background: #fff8e1; border-bottom: 1px solid #ffe0a3; font-size: 12.5px;
+    }
+    .sound-bar button {
+      margin-left: auto; border: none; background: var(--orange); color: white;
+      border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
     /* ──── MOBILE ──── */
     @media (max-width: 768px) {
       .app { grid-template-columns: 1fr; }
@@ -460,17 +554,40 @@
     <div class="sidebar-header">
       <span class="dot"></span>
       <h1>Carrito del Paseo</h1>
-      <button class="refresh-btn" onclick="loadConversations(true)" title="Actualizar">↻</button>
+      <button class="refresh-btn" onclick="refreshActive(true)" title="Actualizar">↻</button>
     </div>
-    <div id="bot-toggle-bar" style="padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);font-size:13px;">
-      <span id="bot-status-label" style="flex:1">Cargando...</span>
-      <button id="bot-toggle-btn" onclick="toggleBot()" style="border:none;border-radius:12px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">...</button>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="pedidos" onclick="setTab('pedidos')">
+        📋 Pedidos<span class="badge" id="tab-badge" hidden>0</span>
+      </button>
+      <button class="tab" data-tab="whatsapp" onclick="setTab('whatsapp')">💬 WhatsApp</button>
     </div>
-    <div class="search">
-      <input type="text" placeholder="Buscar chat..." oninput="filterConvs(this.value)" />
+
+    <!-- El sonido de pedido nuevo necesita una interaccion previa del usuario:
+         los navegadores bloquean el autoplay. -->
+    <div class="sound-bar" id="sound-bar" hidden>
+      🔕 El aviso sonoro está apagado
+      <button onclick="enableSound()">Activar</button>
     </div>
-    <div class="conv-list" id="conv-list">
-      <div class="empty-list">Cargando...</div>
+
+    <!-- ── TAB PEDIDOS ── -->
+    <div class="board view" id="board" data-view="pedidos">
+      <div class="board-empty">Cargando pedidos…</div>
+    </div>
+
+    <!-- ── TAB WHATSAPP (sin cambios) ── -->
+    <div data-view="whatsapp" class="view view-hidden">
+      <div id="bot-toggle-bar" style="padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);font-size:13px;">
+        <span id="bot-status-label" style="flex:1">Cargando...</span>
+        <button id="bot-toggle-btn" onclick="toggleBot()" style="border:none;border-radius:12px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">...</button>
+      </div>
+      <div class="search">
+        <input type="text" placeholder="Buscar chat..." oninput="filterConvs(this.value)" />
+      </div>
+      <div class="conv-list" id="conv-list">
+        <div class="empty-list">Cargando...</div>
+      </div>
     </div>
   </aside>
 
@@ -816,6 +933,298 @@
     }
   }
 
+  // ═══════════════════════════════════════════════════
+  //  TABLERO DE PEDIDOS
+  // ═══════════════════════════════════════════════════
+  const board = {
+    tab: "pedidos",
+    orders: [],
+    vistos: new Set(),      // para detectar pedidos nuevos y sonar
+    sonido: localStorage.getItem("cdp_sonido") === "1",
+    primeraCarga: true,
+  };
+
+  const GRUPOS = [
+    { titulo: "🔔 Nuevos",              estados: ["pending"] },
+    { titulo: "🍳 En preparación",      estados: ["confirmed"] },
+    { titulo: "🏁 Listos · En camino",  estados: ["ready", "on_the_way"] },
+    { titulo: "✅ Cerrados hoy",         estados: ["delivered", "done", "rejected"] },
+  ];
+
+  function setTab(tab) {
+    board.tab = tab;
+    document.querySelectorAll(".tab").forEach(t =>
+      t.classList.toggle("active", t.dataset.tab === tab));
+    document.querySelectorAll("[data-view]").forEach(v =>
+      v.classList.toggle("view-hidden", v.dataset.view !== tab));
+    refreshActive();
+  }
+
+  function refreshActive(feedback) {
+    if (board.tab === "pedidos") loadOrders(feedback);
+    else loadConversations(feedback);
+  }
+
+  function enableSound() {
+    board.sonido = true;
+    localStorage.setItem("cdp_sonido", "1");
+    document.getElementById("sound-bar").hidden = true;
+    beep();
+    showToast("🔔 Aviso sonoro activado");
+  }
+
+  // Beep sintetizado: evita tener que servir un archivo de audio.
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, 0.18].forEach(t => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 880; osc.type = "sine";
+        gain.gain.setValueAtTime(0.001, ctx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.15);
+        osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.16);
+      });
+    } catch {}
+  }
+
+  let tituloOriginal = document.title;
+  let parpadeo = null;
+  function alertarNuevo(cantidad) {
+    if (board.sonido) beep();
+    clearInterval(parpadeo);
+    let on = false;
+    parpadeo = setInterval(() => {
+      document.title = on ? tituloOriginal : `🔔 ${cantidad} pedido${cantidad > 1 ? "s" : ""} nuevo${cantidad > 1 ? "s" : ""}`;
+      on = !on;
+    }, 900);
+    // El parpadeo para solo cuando el empleado vuelve a la pestana.
+    document.addEventListener("visibilitychange", function stop() {
+      if (document.visibilityState === "visible") {
+        clearInterval(parpadeo); document.title = tituloOriginal;
+        document.removeEventListener("visibilitychange", stop);
+      }
+    });
+  }
+
+  async function loadOrders(feedback) {
+    try {
+      const res = await fetch("/api/orders");
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error();
+
+      const nuevos = data.filter(o => o.status === "pending" && !board.vistos.has(o.id));
+      data.forEach(o => board.vistos.add(o.id));
+
+      board.orders = data;
+      renderBoard();
+
+      if (!board.primeraCarga && nuevos.length) alertarNuevo(nuevos.length);
+      board.primeraCarga = false;
+
+      if (feedback) showToast("↻ Actualizado");
+    } catch {
+      if (feedback) showToast("❌ Error cargando pedidos");
+    }
+  }
+
+  function minutosDesde(iso) {
+    // created_at viene sin zona horaria desde Postgres: se fuerza UTC.
+    const t = /Z|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + "Z";
+    return Math.floor((Date.now() - new Date(t)) / 60000);
+  }
+
+  function renderBoard() {
+    const el = document.getElementById("board");
+    const pendientes = board.orders.filter(o => o.status === "pending").length;
+
+    const badge = document.getElementById("tab-badge");
+    badge.hidden = !pendientes;
+    badge.textContent = pendientes;
+
+    document.getElementById("sound-bar").hidden = board.sonido;
+
+    if (!board.orders.length) {
+      el.innerHTML = '<div class="board-empty">No hay pedidos todavía.<br>Los que entren por la web aparecen acá.</div>';
+      return;
+    }
+
+    el.innerHTML = GRUPOS.map(g => {
+      const items = board.orders.filter(o => g.estados.includes(o.status));
+      if (!items.length) return "";
+      return `<div class="board-group">
+        <h3>${escapeHtml(g.titulo)} (${items.length})</h3>
+        ${items.map(renderOrder).join("")}
+      </div>`;
+    }).join("") || '<div class="board-empty">Nada por ahora.</div>';
+  }
+
+  function renderOrder(o) {
+    const edad = minutosDesde(o.created_at);
+    // Un pedido sin confirmar hace mas de 5 minutos es un cliente esperando.
+    const urgente = o.status === "pending" && edad >= 5;
+    const itemsTotal = Number(o.items_total ?? o.subtotal ?? o.total ?? 0);
+    const esDelivery = o.type === "delivery";
+
+    const items = (Array.isArray(o.items) ? o.items : []).map(i => {
+      const opciones = i.opciones && typeof i.opciones === "object"
+        ? Object.entries(i.opciones)
+            .filter(([, v]) => Array.isArray(v) && v.length)
+            .map(([g, v]) => `${g}: ${v.join(", ")}`).join(" · ")
+        : (i.detalle || "");
+      const precio = i.precio_linea != null ? i.precio_linea : (i.precio || 0) * (i.cantidad || 1);
+      return `<div class="oc-item">
+        <div><b>${i.cantidad || 1}×</b> ${escapeHtml(i.nombre || "?")} — $${escapeHtml(String(precio))}</div>
+        ${opciones ? `<div class="oc-item-opts">${escapeHtml(opciones)}</div>` : ""}
+        ${i.nota ? `<div class="oc-item-nota">“${escapeHtml(i.nota)}”</div>` : ""}
+      </div>`;
+    }).join("");
+
+    let acciones = "";
+    if (o.status === "pending") {
+      acciones = `
+        <div class="oc-fee">
+          <div>
+            <label>Envío $</label>
+            <input type="number" min="0" value="${esDelivery ? "" : 0}" placeholder="0"
+                   data-fee="${o.id}" oninput="recalcTotal('${o.id}', ${itemsTotal})">
+          </div>
+          <div>
+            <label>Demora (min)</label>
+            <input type="number" min="0" placeholder="30" data-eta="${o.id}">
+          </div>
+          <div class="oc-fee-total">Total: <b id="tot-${o.id}">$${itemsTotal}</b></div>
+        </div>
+        <div class="oc-btns">
+          <button class="oc-btn confirm" onclick="confirmOrder('${o.id}', ${itemsTotal})">✅ Confirmar</button>
+          <button class="oc-btn reject" onclick="rejectOrder('${o.id}')">❌ Rechazar</button>
+          <button class="oc-btn wa" onclick="abrirWa('${o.id}', 'new')">💬 WhatsApp</button>
+        </div>`;
+    } else if (o.status === "confirmed") {
+      acciones = `<div class="oc-btns">
+        <button class="oc-btn ready" onclick="orderAction('${o.id}', 'ready')">${esDelivery ? "🏍 En camino" : "🏁 Listo"}</button>
+        <button class="oc-btn wa" onclick="abrirWa('${o.id}', 'confirmed')">💬 WhatsApp</button>
+      </div>`;
+    } else if (o.status === "ready" || o.status === "on_the_way") {
+      acciones = `<div class="oc-btns">
+        <button class="oc-btn done" onclick="orderAction('${o.id}', 'delivered')">📦 Entregado</button>
+        <button class="oc-btn wa" onclick="abrirWa('${o.id}', 'ready')">💬 WhatsApp</button>
+      </div>`;
+    }
+
+    return `<div class="ocard ${escapeHtml(o.status)}${urgente ? " urgente" : ""}">
+      <div class="oc-top">
+        <span class="oc-num">${escapeHtml(o.order_number || "—")}</span>
+        <span class="oc-chan ${escapeHtml(o.channel || "whatsapp")}">${o.channel === "web" ? "🌐 Web" : "💬 WA"}</span>
+        <span class="oc-age${urgente ? " urgente" : ""}">${edad < 1 ? "recién" : edad + " min"}</span>
+      </div>
+
+      <div class="oc-cli"><strong>${escapeHtml(o.customer_name || "Sin nombre")}</strong>
+        ${o.contact_phone || o.customer_phone ? ` · ${escapeHtml(o.contact_phone || o.customer_phone)}` : ""}</div>
+
+      <div class="oc-meta">${esDelivery
+        ? `🛵 ${escapeHtml(o.address || "sin dirección")}${o.address_details ? ` <em>(${escapeHtml(o.address_details)})</em>` : ""}`
+        : "🏪 Retira en el local"}</div>
+      <div class="oc-meta">💵 ${escapeHtml(o.payment_method || "efectivo")}${o.pays_with ? ` · paga con $${escapeHtml(String(o.pays_with))}` : ""}</div>
+      ${o.eta_minutes ? `<div class="oc-meta">⏱ ${escapeHtml(String(o.eta_minutes))} min acordados</div>` : ""}
+      ${o.rejected_reason ? `<div class="oc-nota-gral">❌ ${escapeHtml(o.rejected_reason)}</div>` : ""}
+      ${o.customer_note ? `<div class="oc-nota-gral">📝 ${escapeHtml(o.customer_note)}</div>` : ""}
+
+      <div class="oc-items">${items || "<em>sin detalle</em>"}</div>
+      <div class="oc-tot">
+        <span>${o.delivery_fee > 0 ? `Items $${itemsTotal} + envío $${escapeHtml(String(o.delivery_fee))}` : "Total"}</span>
+        <span>$${escapeHtml(String(o.total ?? itemsTotal))}</span>
+      </div>
+      ${acciones}
+    </div>`;
+  }
+
+  function recalcTotal(id, itemsTotal) {
+    const fee = Number(document.querySelector(`[data-fee="${id}"]`)?.value) || 0;
+    const el = document.getElementById(`tot-${id}`);
+    if (el) el.textContent = `$${itemsTotal + fee}`;
+  }
+
+  async function confirmOrder(id, itemsTotal) {
+    const fee = Number(document.querySelector(`[data-fee="${id}"]`)?.value) || 0;
+    const eta = Number(document.querySelector(`[data-eta="${id}"]`)?.value) || null;
+    try {
+      const res = await fetch(`/api/orders/${id}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ delivery_fee: fee, eta_minutes: eta }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await loadOrders();
+      // Con Meta bloqueado el aviso automatico no sale: se le ofrece el link.
+      if (!data.notified && data.wa_url) {
+        showToast("✅ Confirmado — avisale por WhatsApp");
+        window.open(data.wa_url, "_blank");
+      } else {
+        showToast("✅ Pedido confirmado");
+      }
+    } catch (e) {
+      showToast("❌ " + (e.message || "Error al confirmar"));
+    }
+  }
+
+  const MOTIVOS = [
+    "No llegamos a esa zona, pero lo podés pasar a buscar por el local.",
+    "Hoy estamos con mucha demora, no llegamos con ese pedido.",
+    "Se nos terminó uno de los productos del pedido.",
+  ];
+
+  async function rejectOrder(id) {
+    const motivo = prompt(
+      "¿Por qué se rechaza? El cliente va a ver este mensaje.\n\n" +
+      MOTIVOS.map((m, i) => `${i + 1}. ${m}`).join("\n") +
+      "\n\nEscribí el número o tu propio mensaje:",
+      "1",
+    );
+    if (!motivo) return;
+    const texto = MOTIVOS[Number(motivo) - 1] || motivo;
+    try {
+      const res = await fetch(`/api/orders/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motivo: texto }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await loadOrders();
+      showToast("Pedido rechazado");
+      if (!data.notified && data.wa_url) window.open(data.wa_url, "_blank");
+    } catch (e) {
+      showToast("❌ " + (e.message || "Error"));
+    }
+  }
+
+  async function orderAction(id, accion) {
+    try {
+      const res = await fetch(`/api/orders/${id}/${accion}`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await loadOrders();
+      showToast("✅ Actualizado");
+      if (accion === "ready" && !data.notified && data.wa_url) window.open(data.wa_url, "_blank");
+    } catch (e) {
+      showToast("❌ " + (e.message || "Error"));
+    }
+  }
+
+  async function abrirWa(id, estado) {
+    try {
+      const res = await fetch(`/api/orders/${id}/wa-link?estado=${estado}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.open(data.url, "_blank");
+    } catch (e) {
+      showToast("❌ " + (e.message || "Sin teléfono válido"));
+    }
+  }
+
   // ──── Polling
   async function loadConversations(showFeedback) {
     try {
@@ -870,9 +1279,11 @@
     }
   }
 
+  loadOrders();
   loadConversations();
   loadBotStatus();
-  setInterval(loadConversations, 5000);
+  setInterval(() => { if (board.tab === "pedidos") loadOrders(); }, 5000);
+  setInterval(() => { if (board.tab === "whatsapp") loadConversations(); }, 5000);
   setInterval(() => state.activeConv && loadChat(), 3000);
 </script>
 </body>

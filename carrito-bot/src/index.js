@@ -6,6 +6,7 @@ require("dotenv").config();
 
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 const {
     processMessage,
     saveMessage,
@@ -17,25 +18,53 @@ const {
 const { sendMessage, downloadMedia, markAsRead } = require("./whatsapp");
 const { transcribeAudio } = require("./transcribe");
 const supabase = require("./db");
+const { buildOrderMessage, buildWhatsappLink } = require("./messages");
+const webRoutes = require("./web/routes");
+const { cors: webCors } = require("./web/middleware");
 
 const app = express();
-app.use(express.json());
 
-const LOCAL_ADDRESS = "Zorrilla de San Martín 1835, Paysandú";
+// Railway corre detras de un proxy: sin esto req.ip es la del proxy y el
+// rate limiting de /api/web limitaria a todos los clientes como si fueran uno.
+app.set("trust proxy", 1);
+
+app.use(express.json({ limit: "100kb" }));
+
 const processedMessages = new Set();
 
 // ─────────────────────────────────────────────
 // AUTH BÁSICA PARA PANEL Y API
 // ─────────────────────────────────────────────
-const PANEL_USER = process.env.PANEL_USER || "admin";
-const PANEL_PASS = process.env.PANEL_PASS || "123456";
+const PANEL_USER = process.env.PANEL_USER;
+const PANEL_PASS = process.env.PANEL_PASS;
+
+// Sin credenciales no se arranca: el panel expone nombres, telefonos y
+// direcciones de clientes. Antes habia defaults "admin"/"123456".
+if (!PANEL_USER || !PANEL_PASS) {
+    console.error("\n❌ Faltan PANEL_USER y/o PANEL_PASS en las variables de entorno.");
+    console.error("   El panel expone datos personales de clientes; no se arranca sin credenciales.\n");
+    process.exit(1);
+}
+
+// Comparacion en tiempo constante: evita filtrar la password por timing.
+function safeEqual(a, b) {
+    const bufA = Buffer.from(String(a), "utf8");
+    const bufB = Buffer.from(String(b), "utf8");
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function basicAuth(req, res, next) {
     const header = req.headers.authorization || "";
     const [scheme, encoded] = header.split(" ");
     if (scheme === "Basic" && encoded) {
-        const [user, pass] = Buffer.from(encoded, "base64").toString().split(":");
-        if (user === PANEL_USER && pass === PANEL_PASS) return next();
+        const decoded = Buffer.from(encoded, "base64").toString();
+        const sep = decoded.indexOf(":");   // la password puede contener ":"
+        const user = sep === -1 ? decoded : decoded.slice(0, sep);
+        const pass = sep === -1 ? "" : decoded.slice(sep + 1);
+        // & (no &&) para que ambas comparaciones corran siempre: mismo tiempo
+        // exista o no el usuario.
+        if (safeEqual(user, PANEL_USER) & safeEqual(pass, PANEL_PASS)) return next();
     }
     res.set("WWW-Authenticate", 'Basic realm="Panel Carrito", charset="UTF-8"');
     res.status(401).send("Autenticación requerida");
@@ -151,9 +180,19 @@ async function handleIncomingMessage(message) {
 }
 
 // ─────────────────────────────────────────────
+// API PUBLICA DE LA WEB DE PEDIDOS
+// ─────────────────────────────────────────────
+// Va antes del basicAuth: es la unica parte de /api que es publica.
+app.use("/api/web", webCors, webRoutes);
+
+// ─────────────────────────────────────────────
 // PANEL
 // ─────────────────────────────────────────────
-app.use("/api", basicAuth);
+// /api/web/* es publico (lo consume la web de pedidos); el resto exige panel.
+// Escrito como allowlist invertida a proposito: cualquier endpoint nuevo que no
+// sea /api/web queda protegido solo, sin tener que acordarse de agregarlo.
+app.use("/api", (req, res, next) =>
+    req.path.startsWith("/web/") ? next() : basicAuth(req, res, next));
 app.get("/privacidad", (req, res) => {
     res.sendFile(path.join(__dirname, "../public/privacidad.html"));
 });
@@ -265,41 +304,105 @@ app.post("/api/conversations/:phone/status", async (req, res) => {
 // ─────────────────────────────────────────────
 // API — PEDIDOS
 // ─────────────────────────────────────────────
-app.post("/api/orders/:id/confirm", async (req, res) => {
-    const { data: order, error } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("id", req.params.id)
-        .single();
-    if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
+// Tablero del panel: pedidos de los dos canales en una sola lista.
+app.get("/api/orders", async (req, res) => {
+    // Por defecto, lo del dia comercial en curso (corta a las 06:00 local),
+    // asi el turno de la noche no se mezcla con el del dia anterior.
+    const desde = req.query.desde || new Date(Date.now() - 18 * 3600_000).toISOString();
 
-    let msg = `✅ *Pedido ${order.order_number} confirmado!*\n\n`;
-    msg += `Hola ${order.customer_name || ""}, ya lo estamos preparando.\n\n`;
-    const paymentLabel = {
-        efectivo: "efectivo",
-        transferencia: "transferencia",
-        debito: "débito",
-    }[order.payment_method] || "efectivo";
+    let q = supabase.from("orders").select("*").gte("created_at", desde);
+    if (req.query.canal) q = q.eq("channel", req.query.canal);
+    if (req.query.estado) q = q.in("status", String(req.query.estado).split(","));
 
-    if (order.type === "delivery") {
-        msg += `🚚 Te lo enviamos a: ${order.address}\n`;
-        msg += `💵 Total a pagar: $${order.total} (${paymentLabel})`;
-    } else {
-        msg += `🏪 Podés retirar en: ${LOCAL_ADDRESS}\n`;
-        msg += `💵 Total: $${order.total} (${paymentLabel})`;
-    }
-
-    try {
-        await sendMessage(order.customer_phone, msg);
-        await saveMessage(order.customer_phone, "human", msg);
-        await supabase.from("orders").update({ status: "confirmed" }).eq("id", order.id);
-        res.json({ ok: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(200);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
 });
 
+// Confirmar: aca el empleado fija el envio real y la demora acordada.
+// El total se recalcula en el server (items_total + envio), nunca se toma
+// el numero que mande el navegador.
+app.post("/api/orders/:id/confirm", async (req, res) => {
+    const { data: order, error } = await supabase
+        .from("orders").select("*").eq("id", req.params.id).single();
+    if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
+
+    const itemsTotal = Number(order.items_total ?? order.subtotal ?? order.total ?? 0);
+    const envio = Math.max(0, Number(req.body?.delivery_fee) || 0);
+    const eta = Number(req.body?.eta_minutes) > 0 ? Math.round(Number(req.body.eta_minutes)) : null;
+
+    const patch = {
+        status: "confirmed",
+        delivery_fee: envio,
+        items_total: itemsTotal,
+        total: itemsTotal + envio,
+        eta_minutes: eta,
+        confirmed_at: new Date().toISOString(),
+    };
+
+    const { error: upError } = await supabase.from("orders").update(patch).eq("id", order.id);
+    if (upError) return res.status(500).json({ error: upError.message });
+
+    await notificar({ ...order, ...patch }, "confirmed", res);
+});
+
+// Listo / En camino, segun sea retiro o delivery.
 app.post("/api/orders/:id/ready", async (req, res) => {
+    const { data: order, error } = await supabase
+        .from("orders").select("*").eq("id", req.params.id).single();
+    if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
+
+    const status = order.type === "delivery" ? "on_the_way" : "ready";
+    const { error: upError } = await supabase
+        .from("orders").update({ status, ready_at: new Date().toISOString() }).eq("id", order.id);
+    if (upError) return res.status(500).json({ error: upError.message });
+
+    await notificar({ ...order, status }, "ready", res);
+});
+
+app.post("/api/orders/:id/delivered", async (req, res) => {
+    const { error } = await supabase.from("orders")
+        .update({ status: "delivered", delivered_at: new Date().toISOString() })
+        .eq("id", req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true, status: "delivered" });
+});
+
+// Rechazar con motivo. El motivo se guarda y se le muestra al cliente.
+app.post("/api/orders/:id/reject", async (req, res) => {
+    const motivo = String(req.body?.motivo || "").trim().slice(0, 200);
+    if (!motivo) return res.status(400).json({ error: "Falta el motivo" });
+
+    const { data: order, error } = await supabase
+        .from("orders").select("*").eq("id", req.params.id).single();
+    if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
+
+    const patch = { status: "rejected", rejected_reason: motivo, rejected_at: new Date().toISOString() };
+    const { error: upError } = await supabase.from("orders").update(patch).eq("id", order.id);
+    if (upError) return res.status(500).json({ error: upError.message });
+
+    await notificar({ ...order, ...patch }, "rejected", res);
+});
+
+// Aviso al cliente: best-effort. Con Meta bloqueado esto siempre falla, y
+// justamente por eso se responde con el link de WhatsApp para que el empleado
+// lo mande a mano desde su telefono.
+async function notificar(order, mensaje, res) {
+    const texto = buildOrderMessage(order, mensaje);
+    let notified = false;
+    try {
+        await sendMessage(order.customer_phone, texto);
+        await saveMessage(order.customer_phone, "human", texto);
+        notified = true;
+    } catch (e) {
+        console.warn(`⚠️ ${order.order_number} → ${order.status}, sin avisar: ${e.message}`);
+    }
+    const wa = buildWhatsappLink(order, mensaje);
+    res.json({ ok: true, status: order.status, notified, wa_url: wa?.url || null });
+}
+
+// Link de WhatsApp con el texto ya escrito, para que el empleado abra el chat.
+app.get("/api/orders/:id/wa-link", async (req, res) => {
     const { data: order, error } = await supabase
         .from("orders")
         .select("*")
@@ -307,23 +410,15 @@ app.post("/api/orders/:id/ready", async (req, res) => {
         .single();
     if (error || !order) return res.status(404).json({ error: "Pedido no encontrado" });
 
-    let msg = `🏁 *Pedido ${order.order_number} listo!*\n\n`;
-    if (order.type === "delivery") {
-        msg += `🏍 Ya sale en camino a: ${order.address}\n`;
-        msg += `💵 Tené $${order.total} en efectivo a mano.`;
-    } else {
-        msg += `🏪 Pasá a retirarlo cuando quieras por ${LOCAL_ADDRESS}.\n`;
-        msg += `💵 Total: $${order.total}`;
-    }
-
+    const estado = req.query.estado || "new";
+    let wa;
     try {
-        await sendMessage(order.customer_phone, msg);
-        await saveMessage(order.customer_phone, "human", msg);
-        await supabase.from("orders").update({ status: "done" }).eq("id", order.id);
-        res.json({ ok: true });
+        wa = buildWhatsappLink(order, estado);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(400).json({ error: e.message });
     }
+    if (!wa) return res.status(422).json({ error: "El pedido no tiene un teléfono válido" });
+    res.json(wa);
 });
 
 app.post("/api/orders/:id/takeover", async (req, res) => {
