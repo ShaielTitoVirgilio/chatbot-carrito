@@ -16,7 +16,13 @@ const router = express.Router();
 const asyncRoute = fn => (req, res) =>
     Promise.resolve(fn(req, res)).catch(e => {
         console.error(`❌ /api/web${req.path}:`, e.message);
-        if (!res.headersSent) res.status(500).json({ error: "error_interno" });
+        if (res.headersSent) return;
+        // Si no se pudo armar el catalogo, la web no puede tomar pedidos
+        // confiables: se responde 503 para que muestre "no disponible" en vez
+        // de un menu sin las opciones obligatorias.
+        const sinCatalogo = /No pude leer|No pude leer el menu/.test(e.message);
+        res.status(sinCatalogo ? 503 : 500)
+           .json({ error: sinCatalogo ? "catalogo_no_disponible" : "error_interno" });
     });
 
 // ─────────────────────────────────────────────

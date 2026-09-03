@@ -20,14 +20,24 @@ function invalidate() {
     cacheAt = 0;
 }
 
-// Las tablas de opciones son nuevas (migracion 003). Si todavia no existen,
-// el catalogo funciona igual y devuelve productos sin opciones, en vez de
-// tirar abajo la web entera.
-async function safeSelect(table, columns) {
+// Postgres 42P01 = "relation does not exist".
+const TABLA_INEXISTENTE = "42P01";
+
+// Leer las opciones NO es opcional: si fallan, un producto que exige verduras
+// se mostraria sin ellas y el cliente podria mandar una "Completa" a medias.
+// Es peor tomar un pedido mal que no tomarlo, asi que el error se propaga y
+// /api/web/catalog responde 503 en vez de servir un menu incompleto.
+//
+// La unica excepcion es que la tabla no exista todavia (proyecto sin migrar):
+// ahi si se degrada, porque es un entorno a medio configurar, no produccion.
+async function selectOpciones(table, columns) {
     const { data, error } = await supabase.from(table).select(columns);
     if (error) {
-        console.warn(`⚠️ catalog: no pude leer ${table} (${error.message}) — sigo sin eso`);
-        return [];
+        if (error.code === TABLA_INEXISTENTE) {
+            console.warn(`⚠️ catalog: ${table} no existe todavía — falta correr las migraciones`);
+            return [];
+        }
+        throw new Error(`No pude leer ${table}: ${error.message} (${error.code || "sin código"})`);
     }
     return data || [];
 }
@@ -35,17 +45,28 @@ async function safeSelect(table, columns) {
 async function loadCatalog() {
     const [menuRes, groups, items, catOpts, itemOpts, configRows] = await Promise.all([
         supabase.from("menu").select("*").eq("disponible", true).order("orden"),
-        safeSelect("option_groups", "*"),
-        safeSelect("option_items", "*"),
-        safeSelect("category_options", "*"),
-        safeSelect("menu_item_options", "*"),
-        safeSelect("config", "*"),
+        selectOpciones("option_groups", "*"),
+        selectOpciones("option_items", "*"),
+        selectOpciones("category_options", "*"),
+        selectOpciones("menu_item_options", "*"),
+        selectOpciones("config", "*"),
     ]);
 
     if (menuRes.error) throw new Error(`No pude leer el menu: ${menuRes.error.message}`);
 
     const config = {};
     for (const row of configRows) config[row.key] = row.value;
+
+    // Chequeo de sanidad. RLS no devuelve error cuando bloquea: devuelve CERO
+    // filas. Sin esto, una mala configuracion de permisos servia un menu sin
+    // horario ni opciones obligatorias, en silencio, y el cliente podia mandar
+    // una "Completa" sin verduras.
+    if (!config.horario) {
+        throw new Error(
+            "No pude leer la config del local (0 filas). " +
+            "Revisá SUPABASE_SERVICE_ROLE_KEY y las policies de RLS."
+        );
+    }
 
     const groupById = new Map(groups.filter(g => g.activo !== false).map(g => [g.id, g]));
 

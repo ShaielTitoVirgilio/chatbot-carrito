@@ -16,6 +16,8 @@ corren desde el SQL Editor de Supabase o con `apply_migration` del MCP.
 | 009 | `009_bucket_menu.sql` | Bucket público `menu` para subir las fotos | Ninguno |
 | 010 | `010_normalizar_urls_vacias.sql` | URLs vacías → NULL, con trigger | Ninguno |
 | 011 | `011_whatsapp_media_privado.sql` | Bucket de fotos de WhatsApp → privado | Ninguno |
+| 012 | `012_lectura_publica_opciones.sql` | Opciones del menú legibles por `anon` | Ninguno |
+| 013 | `013_config_lectura_publica.sql` | `config` legible por `anon` | Ninguno |
 
 ## Antes de la 006
 
