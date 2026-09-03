@@ -22,6 +22,35 @@ const { buildOrderMessage, buildWhatsappLink } = require("./messages");
 const webRoutes = require("./web/routes");
 const { cors: webCors } = require("./web/middleware");
 
+const MEDIA_SIGNED_URL_TTL = 3600; // 1 hora: alcanza para que el panel la muestre
+
+// Antes se guardaba la URL publica completa; ahora se guarda solo el path
+// dentro del bucket. Se soportan ambos formatos para no romper mensajes viejos.
+function mediaPathFromStored(value) {
+    if (!value) return null;
+    if (!value.startsWith("http")) return value;
+    const marker = "/whatsapp-media/";
+    const i = value.indexOf(marker);
+    return i === -1 ? null : value.slice(i + marker.length);
+}
+
+async function resolveMediaUrls(messages) {
+    const conPath = messages
+        .map(m => ({ m, path: m.msg_type === "image" ? mediaPathFromStored(m.media_url) : null }))
+        .filter(x => x.path);
+    if (!conPath.length) return messages;
+
+    const firmadas = await Promise.all(conPath.map(async ({ m, path }) => {
+        const { data, error } = await supabase.storage
+            .from("whatsapp-media")
+            .createSignedUrl(path, MEDIA_SIGNED_URL_TTL);
+        return { id: m.id, url: error ? null : data.signedUrl };
+    }));
+    const byId = new Map(firmadas.map(f => [f.id, f.url]));
+
+    return messages.map(m => byId.has(m.id) ? { ...m, media_url: byId.get(m.id) } : m);
+}
+
 const app = express();
 
 // Railway corre detras de un proxy: sin esto req.ip es la del proxy y el
@@ -143,15 +172,17 @@ async function handleIncomingMessage(message) {
             try {
                 const { buffer, mimeType } = await downloadMedia(mediaId);
                 const ext = mimeType?.includes("png") ? "png" : "jpg";
-                const fileName = `${from}_${Date.now()}.${ext}`;
-                const { data: uploadData, error: uploadError } = await supabase.storage
+                // Nombre aleatorio: antes era `${telefono}_${timestamp}`, con lo
+                // cual conociendo el numero de un cliente se podia barrer sus
+                // fotos por fuerza bruta. El bucket ademas es privado (ver db.js).
+                const fileName = `${crypto.randomUUID()}.${ext}`;
+                const { error: uploadError } = await supabase.storage
                     .from("whatsapp-media")
                     .upload(fileName, buffer, { contentType: mimeType || "image/jpeg", upsert: false });
                 if (uploadError) throw uploadError;
-                const { data: { publicUrl } } = supabase.storage
-                    .from("whatsapp-media")
-                    .getPublicUrl(fileName);
-                await saveMessage(from, "in", message.image?.caption || "", { msgType: "image", mediaUrl: publicUrl });
+                // Se guarda el PATH, no una URL publica: el bucket es privado y
+                // las URLs se firman al vuelo cuando el panel las pide.
+                await saveMessage(from, "in", message.image?.caption || "", { msgType: "image", mediaUrl: fileName });
                 const caption = message.image?.caption ? ` con el texto: "${message.image.caption}"` : "";
                 await sendMessage(from, `📷 Foto recibida${caption}. El personal la va a ver en seguida. 👍`);
             } catch (e) {
@@ -255,12 +286,13 @@ app.get("/api/conversations/:phone", async (req, res) => {
     if (convRes.error) return res.status(500).json({ error: convRes.error.message });
     if (!convRes.data) return res.status(404).json({ error: "Conversación no encontrada" });
 
+    const messages = await resolveMediaUrls(msgsRes.data || []);
     const orders = ordersRes.data || [];
     const activeOrder = orders.find(o => o.status === "pending" || o.status === "confirmed") || null;
 
     res.json({
         conversation: convRes.data,
-        messages: msgsRes.data || [],
+        messages,
         orders,
         active_order: activeOrder,
     });
