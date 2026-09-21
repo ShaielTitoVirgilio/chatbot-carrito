@@ -33,23 +33,23 @@ function isDelivery(order) {
 // Linea de total, con el medio de pago REAL del pedido.
 function totalLine(order) {
     const medio = paymentLabel(order);
-    return `💵 Total: ${money(order.total)}${medio ? ` (${medio})` : ""}`;
+    return `Total: ${money(order.total)}${medio ? ` (${medio})` : ""}`;
 }
 
 function confirmedMessage(order) {
     const nombre = order.customer_name ? ` ${order.customer_name}` : "";
-    let msg = `✅ *Pedido ${order.order_number} confirmado!*\n\n`;
+    let msg = `*Pedido ${order.order_number} confirmado!*\n\n`;
     msg += `Hola${nombre}, ya lo estamos preparando.\n\n`;
 
     if (isDelivery(order)) {
-        msg += `🚚 Te lo enviamos a: ${order.address}\n`;
+        msg += `Te lo enviamos a: ${order.address}\n`;
     } else {
-        msg += `🏪 Podés retirar en: ${LOCAL_ADDRESS}\n`;
+        msg += `Podés retirar en: ${LOCAL_ADDRESS}\n`;
     }
     msg += totalLine(order);
 
     if (order.eta_minutes) {
-        msg += `\n⏱ Demora aproximada: ${order.eta_minutes} min`;
+        msg += `\nDemora aproximada: ${order.eta_minutes} min`;
     }
     return msg;
 }
@@ -57,27 +57,27 @@ function confirmedMessage(order) {
 // Delivery -> salio en camino. Retiro -> esta pronto para pasar a buscarlo.
 function readyMessage(order) {
     if (isDelivery(order)) {
-        let msg = `🏍 *Pedido ${order.order_number} en camino!*\n\n`;
+        let msg = `*Pedido ${order.order_number} en camino!*\n\n`;
         msg += `Ya salió hacia: ${order.address}\n`;
         msg += totalLine(order);
         if (order.payment_method === "efectivo" && order.pays_with) {
-            msg += `\n💰 Llevamos cambio de ${money(order.pays_with)}.`;
+            msg += `\nLlevamos cambio de ${money(order.pays_with)}.`;
         }
         return msg;
     }
 
-    let msg = `🏁 *Pedido ${order.order_number} listo!*\n\n`;
-    msg += `🏪 Pasá a retirarlo cuando quieras por ${LOCAL_ADDRESS}.\n`;
+    let msg = `*Pedido ${order.order_number} listo!*\n\n`;
+    msg += `Pasá a retirarlo cuando quieras por ${LOCAL_ADDRESS}.\n`;
     msg += totalLine(order);
     return msg;
 }
 
 function deliveredMessage(order) {
-    return `🙌 *Pedido ${order.order_number} entregado.*\n\n¡Gracias por elegirnos! Cualquier cosa escribinos por acá.`;
+    return `*Pedido ${order.order_number} entregado.*\n\n¡Gracias por elegirnos! Cualquier cosa escribinos por acá.`;
 }
 
 function rejectedMessage(order) {
-    let msg = `😔 *Pedido ${order.order_number}*\n\n`;
+    let msg = `*Pedido ${order.order_number}*\n\n`;
     msg += order.rejected_reason
         ? `${order.rejected_reason}\n\n`
         : `No pudimos tomar tu pedido.\n\n`;
@@ -88,13 +88,15 @@ function rejectedMessage(order) {
 // Resumen para que el empleado arranque la conversacion en WhatsApp.
 function newOrderMessage(order) {
     const nombre = order.customer_name ? ` ${order.customer_name}` : "";
-    let msg = `¡Hola${nombre}! Recibimos tu pedido ${order.order_number} 🍔\n\n`;
+    let msg = `¡Hola${nombre}! Recibimos tu pedido ${order.order_number}.\n\n`;
     if (isDelivery(order)) {
-        msg += `🚚 Envío a: ${order.address}`;
-        if (order.address_ref) msg += ` (${order.address_ref})`;
+        msg += `Envío a: ${order.address}`;
+        // La columna real es address_details (antes se leia address_ref, que no
+        // existe, y la referencia de la direccion nunca llegaba al mensaje).
+        if (order.address_details) msg += ` (${order.address_details})`;
         msg += `\n`;
     } else {
-        msg += `🏪 Retiro en el local\n`;
+        msg += `Retiro en el local\n`;
     }
     msg += `${totalLine(order)}\n\n`;
     msg += `Te confirmo la demora en un momento.`;
