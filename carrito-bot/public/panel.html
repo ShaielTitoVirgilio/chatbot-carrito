@@ -1126,7 +1126,7 @@
       <div class="oc-meta">${esDelivery
         ? `🛵 ${escapeHtml(o.address || "sin dirección")}${o.address_details ? ` <em>(${escapeHtml(o.address_details)})</em>` : ""}`
         : "🏪 Retira en el local"}</div>
-      <div class="oc-meta">💵 ${escapeHtml(o.payment_method || "efectivo")}${o.pays_with ? ` · paga con $${escapeHtml(String(o.pays_with))}` : ""}</div>
+      ${o.payment_method ? `<div class="oc-meta">💵 ${escapeHtml(o.payment_method)}${o.pays_with ? ` · paga con $${escapeHtml(String(o.pays_with))}` : ""}</div>` : ""}
       ${o.eta_minutes ? `<div class="oc-meta">⏱ ${escapeHtml(String(o.eta_minutes))} min acordados</div>` : ""}
       ${o.rejected_reason ? `<div class="oc-nota-gral">❌ ${escapeHtml(o.rejected_reason)}</div>` : ""}
       ${o.customer_note ? `<div class="oc-nota-gral">📝 ${escapeHtml(o.customer_note)}</div>` : ""}

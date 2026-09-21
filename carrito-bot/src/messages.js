@@ -15,8 +15,11 @@ const PAYMENT_LABEL = {
     debito: "débito",
 };
 
+// Sin medio de pago (pedidos de retiro) no se muestra nada: antes se asumia
+// "efectivo" y el cliente lo veia en el mensaje sin haberlo elegido.
 function paymentLabel(order) {
-    return PAYMENT_LABEL[order.payment_method] || "efectivo";
+    if (!order.payment_method) return null;
+    return PAYMENT_LABEL[order.payment_method] || order.payment_method;
 }
 
 function money(n) {
@@ -29,7 +32,8 @@ function isDelivery(order) {
 
 // Linea de total, con el medio de pago REAL del pedido.
 function totalLine(order) {
-    return `💵 Total: ${money(order.total)} (${paymentLabel(order)})`;
+    const medio = paymentLabel(order);
+    return `💵 Total: ${money(order.total)}${medio ? ` (${medio})` : ""}`;
 }
 
 function confirmedMessage(order) {

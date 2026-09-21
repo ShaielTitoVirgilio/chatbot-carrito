@@ -153,8 +153,13 @@ router.post("/orders", rateLimit({ windowMs: 10 * 60_000, max: 5, key: "orders" 
         }
 
         // Medio de pago: se valida contra config, no contra lo que diga el front.
+        // En retiro no se registra medio de pago: se define en el local al
+        // retirar. Solo el delivery lo necesita (para el cambio del repartidor).
+        const cobraAlEntregar = cliente.tipo === "delivery";
         const pagosOk = (data.config.pagos || {})[cliente.tipo] || ["efectivo"];
-        const pago = pagosOk.includes(body.pago) ? body.pago : pagosOk[0];
+        const pago = cobraAlEntregar
+            ? (pagosOk.includes(body.pago) ? body.pago : pagosOk[0])
+            : null;
 
         const { data: numero, error: rpcError } = await supabase.rpc("next_order_number");
         if (rpcError) {
@@ -182,7 +187,7 @@ router.post("/orders", rateLimit({ windowMs: 10 * 60_000, max: 5, key: "orders" 
             delivery_fee: deliveryFee,
             total: precio.items_total + deliveryFee,
             payment_method: pago,
-            pays_with: Number(body.paga_con) > 0 ? Number(body.paga_con) : null,
+            pays_with: cobraAlEntregar && Number(body.paga_con) > 0 ? Number(body.paga_con) : null,
             customer_note: limpiarTexto(body.nota, 300),
             status: "pending",
         };
