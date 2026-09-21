@@ -181,7 +181,8 @@
     .motivo input { margin-top: 3px; }
     .modal textarea { width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 9px 11px; margin-top: 4px; resize: vertical; min-height: 64px; }
     .modal textarea:focus { outline: none; border-color: var(--blue); }
-    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .modal .sin-tel { background: var(--amber-soft); border: 1px solid #fedf89; color: #7a2e0e; border-radius: 8px; padding: 9px 11px; margin-top: 4px; }
 
     /* ---------- Avisos ---------- */
     .toast {
@@ -244,6 +245,20 @@
   </div>
 </div>
 
+<!-- Avisar por WhatsApp al pasar a Listo / En camino -->
+<div class="modal-bg" id="aviso-bg">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="aviso-title">
+    <h2 id="aviso-title">Avisar al cliente</h2>
+    <p class="hint" id="aviso-hint"></p>
+    <div class="sin-tel" id="aviso-sin-tel" hidden>Este pedido no tiene un teléfono válido, así que no se puede avisar por WhatsApp.</div>
+    <div class="modal-btns">
+      <button class="btn wa" type="button" id="aviso-volver">Volver</button>
+      <button class="btn cancel" type="button" id="aviso-no">No avisar</button>
+      <button class="btn done" type="button" id="aviso-si">Sí, avisar por WhatsApp</button>
+    </div>
+  </div>
+</div>
+
 <div class="wa-fallback" id="wa-fallback">
   <span>El navegador bloqueó la ventana de WhatsApp.</span>
   <a class="btn done" id="wa-fallback-link" href="#" target="_blank" rel="noopener">Abrir WhatsApp</a>
@@ -293,6 +308,7 @@
     sonido: localStorage.getItem("cdp_sonido") === "1",
     error: false,
     cancelando: null,         // id del pedido en el modal de cancelar
+    avisando: null,           // id del pedido en el modal de "avisar por WhatsApp"
   };
 
   const $ = (id) => document.getElementById(id);
@@ -660,18 +676,41 @@
     }
   }
 
-  async function listo(id) {
-    const w = abrirVentanaWa();
+  // Pasar a "Listo / En camino": primero se pregunta si se avisa por WhatsApp.
+  // Si (avisar=true) se abre WhatsApp con el mensaje escrito; No solo cambia de
+  // columna. En los dos casos el pedido pasa a la columna siguiente.
+  async function pasarAListo(id, avisar) {
+    const w = avisar ? abrirVentanaWa() : null;
     try {
       const data = await post(`/api/orders/${id}/ready`);
-      terminarWa(w, data);
-      toast("Pedido actualizado");
+      if (avisar) terminarWa(w, data);
+      toast(avisar ? "Pedido actualizado y cliente avisado" : "Pedido actualizado");
       await cargar();
     } catch (e) {
       if (w) w.close();
       toast("No se pudo actualizar: " + e.message, true);
     }
   }
+
+  function abrirAviso(id) {
+    const o = find(id); if (!o) return;
+    state.avisando = id;
+    const esDelivery = o.type === "delivery";
+    $("aviso-title").textContent = esDelivery ? "Pedido en camino" : "Pedido listo para retirar";
+    $("aviso-hint").textContent = `¿Querés avisarle por WhatsApp a ${o.customer_name || "el cliente"} que el pedido ${o.order_number} ${esDelivery ? "ya salió en camino" : "ya está listo para retirar"}?`;
+    const hayTel = !!o.wa_chat_url;
+    $("aviso-sin-tel").hidden = hayTel;
+    $("aviso-si").hidden = !hayTel;
+    $("aviso-no").textContent = hayTel ? "No avisar" : "Pasar igual";
+    $("aviso-bg").classList.add("show");
+  }
+  function cerrarAviso() { $("aviso-bg").classList.remove("show"); state.avisando = null; }
+
+  // Los botones abren la ventana de WhatsApp en el mismo click (ver abrirVentanaWa).
+  $("aviso-si").addEventListener("click", () => { const id = state.avisando; cerrarAviso(); if (id) pasarAListo(id, true); });
+  $("aviso-no").addEventListener("click", () => { const id = state.avisando; cerrarAviso(); if (id) pasarAListo(id, false); });
+  $("aviso-volver").addEventListener("click", cerrarAviso);
+  $("aviso-bg").addEventListener("click", (e) => { if (e.target === $("aviso-bg")) cerrarAviso(); });
 
   async function entregado(id) {
     try {
@@ -705,7 +744,7 @@
   });
   $("modal-volver").addEventListener("click", cerrarModal);
   $("modal-bg").addEventListener("click", (e) => { if (e.target === $("modal-bg")) cerrarModal(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { cerrarModal(); cerrarAviso(); } });
 
   $("modal-ok").addEventListener("click", async () => {
     const id = state.cancelando; if (!id) return;
@@ -731,7 +770,7 @@
     const b = e.target.closest("[data-act]");
     if (!b) return;
     const id = b.dataset.id;
-    ({ confirmar, listo, entregado, cancelar: abrirModal }[b.dataset.act] || (() => {}))(id);
+    ({ confirmar, listo: abrirAviso, entregado, cancelar: abrirModal }[b.dataset.act] || (() => {}))(id);
   });
 
   $("board").addEventListener("input", (e) => {
