@@ -39,3 +39,11 @@ test("retiro sin medio de pago no muestra parentesis", () => {
     assert.match(buildOrderMessage(PEDIDOS.retiro, "confirmed"), /Total: \$390\n?/);
     assert.doesNotMatch(buildOrderMessage(PEDIDOS.retiro, "confirmed"), /\(/);
 });
+
+test("el link de chat no lleva texto y normaliza el telefono", () => {
+    const { buildChatLink } = require("../src/messages");
+    assert.equal(buildChatLink({ contact_phone: "099 123 456" }), "https://wa.me/59899123456");
+    assert.equal(buildChatLink({ customer_phone: "+598 99 123 456" }), "https://wa.me/59899123456");
+    assert.equal(buildChatLink({ contact_phone: "abc" }), null);
+    assert.equal(buildChatLink({}), null);
+});

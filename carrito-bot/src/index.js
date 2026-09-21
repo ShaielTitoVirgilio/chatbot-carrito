@@ -18,7 +18,7 @@ const {
 const { sendMessage, downloadMedia, markAsRead } = require("./whatsapp");
 const { transcribeAudio } = require("./transcribe");
 const supabase = require("./db");
-const { buildOrderMessage, buildWhatsappLink } = require("./messages");
+const { buildOrderMessage, buildWhatsappLink, buildChatLink } = require("./messages");
 const webRoutes = require("./web/routes");
 const { cors: webCors } = require("./web/middleware");
 
@@ -348,7 +348,11 @@ app.get("/api/orders", async (req, res) => {
 
     const { data, error } = await q.order("created_at", { ascending: false }).limit(200);
     if (error) return res.status(500).json({ error: error.message });
-    res.json(data);
+
+    // wa_chat_url: link al chat SIN texto, listo para un <a href>. Al ser un
+    // link directo (y no un window.open despues de un fetch) el navegador no lo
+    // bloquea como popup.
+    res.json(data.map(o => ({ ...o, wa_chat_url: buildChatLink(o) })));
 });
 
 // Confirmar: aca el empleado fija el envio real y la demora acordada.
@@ -416,21 +420,13 @@ app.post("/api/orders/:id/reject", async (req, res) => {
     await notificar({ ...order, ...patch }, "rejected", res);
 });
 
-// Aviso al cliente: best-effort. Con Meta bloqueado esto siempre falla, y
-// justamente por eso se responde con el link de WhatsApp para que el empleado
-// lo mande a mano desde su telefono.
-async function notificar(order, mensaje, res) {
-    const texto = buildOrderMessage(order, mensaje);
-    let notified = false;
-    try {
-        await sendMessage(order.customer_phone, texto);
-        await saveMessage(order.customer_phone, "human", texto);
-        notified = true;
-    } catch (e) {
-        console.warn(`⚠️ ${order.order_number} → ${order.status}, sin avisar: ${e.message}`);
-    }
+// El aviso al cliente lo manda el empleado a mano: se responde con el link de
+// WhatsApp que lleva el mensaje ya escrito. Antes se intentaba tambien mandarlo
+// por la API de Meta, que esta bloqueada: cada confirmacion esperaba un
+// request que siempre fallaba, y el panel tardaba en responder.
+function notificar(order, mensaje, res) {
     const wa = buildWhatsappLink(order, mensaje);
-    res.json({ ok: true, status: order.status, notified, wa_url: wa?.url || null });
+    res.json({ ok: true, status: order.status, notified: false, wa_url: wa?.url || null });
 }
 
 // Link de WhatsApp con el texto ya escrito, para que el empleado abra el chat.

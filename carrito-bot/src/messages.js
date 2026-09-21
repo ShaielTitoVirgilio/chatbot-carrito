@@ -143,4 +143,11 @@ function buildWhatsappLink(order, estado) {
     return { url: `https://wa.me/${phone}?text=${encodeURIComponent(texto)}`, texto, phone };
 }
 
-module.exports = { buildOrderMessage, buildWhatsappLink, normalizeUyPhone, LOCAL_ADDRESS };
+// Link al chat con el cliente SIN texto: el empleado escribe lo que quiera.
+// Devuelve null si el pedido no tiene un telefono utilizable.
+function buildChatLink(order) {
+    const phone = normalizeUyPhone(order.contact_phone || order.customer_phone);
+    return phone ? `https://wa.me/${phone}` : null;
+}
+
+module.exports = { buildOrderMessage, buildWhatsappLink, buildChatLink, normalizeUyPhone, LOCAL_ADDRESS };
