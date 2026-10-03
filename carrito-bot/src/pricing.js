@@ -46,6 +46,16 @@ function priceLine(catalog, rawLine) {
         };
     }
 
+    // Sin stock: la UI ya lo bloquea, pero el server es el que manda. Cubre el
+    // caso de un carrito armado antes de que el local marcara el producto.
+    if (producto.agotado) {
+        return {
+            ok: false,
+            errores: [{ codigo: "producto_agotado", producto_slug: producto.slug, nombre: producto.nombre }],
+            avisos,
+        };
+    }
+
     const cantidad = clampCantidad(rawLine.cantidad);
     const opcionesEntrada = rawLine.opciones || {};
     const opcionesElegidas = {};

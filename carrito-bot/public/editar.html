@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Editar menú - Carrito del Paseo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #eef0f3;
+      --panel: #ffffff;
+      --border: #dfe3e8;
+      --text: #14181f;
+      --muted: #667085;
+      --red: #d92d20;
+      --red-soft: #fef3f2;
+      --green: #12a150;
+      --green-dark: #0c7a3b;
+      --amber: #b54708;
+      --amber-soft: #fffaeb;
+      --blue: #1570ef;
+    }
+
+    [hidden] { display: none !important; }
+
+    html, body {
+      min-height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+    }
+    body { padding-bottom: 92px; }
+    button, input { font-family: inherit; font-size: inherit; }
+
+    /* ---------- Barra superior ---------- */
+    .top {
+      position: sticky; top: 0; z-index: 5;
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 10px 16px;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+    }
+    .brand h1 { font-size: 17px; font-weight: 800; }
+    .brand .sub { color: var(--muted); font-weight: 600; margin-left: 6px; }
+    .top-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+    .tbtn {
+      border: 1px solid var(--border); background: var(--panel); color: var(--text);
+      border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer; text-decoration: none;
+    }
+    .tbtn:hover { background: #f5f6f8; }
+
+    .wrap { max-width: 760px; margin: 0 auto; padding: 14px 14px 0; }
+
+    .help {
+      background: var(--amber-soft); border: 1px solid #fedf89; color: #7a2e0e;
+      border-radius: 10px; padding: 10px 13px; margin-bottom: 12px; line-height: 1.45; font-size: 14px;
+    }
+    .search {
+      width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--panel); margin-bottom: 6px;
+    }
+    .msg { text-align: center; color: var(--muted); padding: 40px 12px; }
+    .msg.error { color: #b42318; }
+
+    /* ---------- Secciones ---------- */
+    .sec { margin-top: 18px; }
+    .sec h2 {
+      font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--muted); padding: 0 4px 8px;
+    }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+
+    .row {
+      display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px;
+      padding: 10px 14px; border-top: 1px solid #eef0f3;
+    }
+    .row:first-child { border-top: none; }
+    .row.opt { grid-template-columns: 1fr auto; }
+    .row.changed { background: #f5faff; box-shadow: inset 4px 0 0 var(--blue); }
+    .row.sin-stock .nombre { color: var(--muted); text-decoration: line-through; }
+    .nombre { font-weight: 700; line-height: 1.3; min-width: 0; }
+    .nombre small { display: block; font-weight: 500; color: var(--muted); font-size: 12.5px; text-decoration: none; }
+
+    .precio {
+      display: flex; align-items: center; gap: 4px;
+      border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; background: #fff;
+    }
+    .precio:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(21,112,239,.15); }
+    .precio.invalido { border-color: var(--red); background: var(--red-soft); }
+    .precio span { color: var(--muted); font-weight: 700; }
+    .precio input {
+      width: 76px; border: none; outline: none; padding: 9px 0; text-align: right;
+      font-weight: 800; background: transparent;
+    }
+
+    .stock {
+      display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
+      padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: #fff;
+      font-weight: 700; font-size: 13.5px; white-space: nowrap;
+    }
+    .stock input { width: 20px; height: 20px; accent-color: var(--red); cursor: pointer; }
+    .stock.on { background: var(--red-soft); border-color: #fecdca; color: #b42318; }
+
+    .grupo-titulo { padding: 12px 14px 4px; font-weight: 800; }
+    .grupo-titulo small { display: block; font-weight: 500; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+
+    /* Celular: el nombre y la casilla a la izquierda, el precio a la derecha,
+       asi cada producto ocupa dos lineas cortas en vez de tres. */
+    @media (max-width: 520px) {
+      .row:not(.opt) { grid-template-columns: 1fr auto; row-gap: 6px; }
+      .row:not(.opt) .nombre { grid-column: 1; }
+      .row:not(.opt) .precio { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+      .row:not(.opt) .stock { grid-column: 1; justify-self: start; padding: 5px 10px; font-size: 13px; }
+    }
+
+    /* ---------- Barra de guardado ---------- */
+    .savebar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+      display: flex; align-items: center; gap: 12px; justify-content: center;
+      padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--border);
+      box-shadow: 0 -4px 16px rgba(16,24,40,.08);
+    }
+    .savebar .count { font-weight: 700; color: var(--muted); }
+    .savebar .count.dirty { color: var(--blue); }
+    .btn-save {
+      border: none; background: var(--green); color: #fff; font-weight: 800;
+      border-radius: 10px; padding: 12px 26px; cursor: pointer;
+    }
+    .btn-save:hover:not(:disabled) { background: var(--green-dark); }
+    .btn-save:disabled { background: #c7ccd4; cursor: not-allowed; }
+
+    .toast {
+      position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 7;
+      background: #14181f; color: #fff; padding: 11px 18px; border-radius: 10px; font-weight: 700;
+      max-width: calc(100vw - 32px); opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .toast.show { opacity: 1; }
+    .toast.error { background: #b42318; }
+  </style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>Carrito del Paseo<span class="sub">Editar menú</span></h1>
+  </div>
+  <div class="top-right">
+    <a class="tbtn" href="/panel">Ir a pedidos</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="help">
+    Cambiá precios y marcá <b>Sin stock</b> lo que se terminó: el producto sigue
+    apareciendo en la página de pedidos pero no se puede pedir.
+    Los cambios se aplican recién al tocar <b>Guardar</b>.
+  </p>
+  <input class="search" id="search" type="search" placeholder="Buscar producto…" autocomplete="off" />
+  <div id="content"><p class="msg">Cargando menú…</p></div>
+</main>
+
+<div class="savebar">
+  <span class="count" id="count">Sin cambios</span>
+  <button class="tbtn" id="discard" type="button" hidden>Descartar</button>
+  <button class="btn-save" id="save" type="button" disabled>Guardar</button>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  // Orden y nombre de las categorias: el mismo que ve el cliente en la web.
+  const CATEGORIAS = [
+    ['hamburguesas', 'Hamburguesas'], ['chivitos', 'Chivitos'], ['panchos', 'Panchos'],
+    ['papas', 'Papas fritas'], ['nuggets', 'Nuggets'], ['sandwiches', 'Sandwiches'],
+    ['chorizos', 'Chorizos'], ['bebidas', 'Bebidas'],
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const content = $('content');
+  const saveBtn = $('save');
+  const discardBtn = $('discard');
+  const countEl = $('count');
+  const toastEl = $('toast');
+
+  // Lo que hay guardado en la base (para saber que cambio) y los controles vivos.
+  let original = { productos: new Map(), opciones: new Map() };
+  const controles = { productos: new Map(), opciones: new Map() };
+
+  function el(tag, props, ...hijos) {
+    const e = document.createElement(tag);
+    if (props) for (const [k, v] of Object.entries(props)) {
+      if (k === 'class') e.className = v;
+      else if (k === 'text') e.textContent = v;
+      else e.setAttribute(k, v);
+    }
+    for (const h of hijos) if (h) e.append(h);
+    return e;
+  }
+
+  function toast(texto, error) {
+    toastEl.textContent = texto;
+    toastEl.className = 'toast show' + (error ? ' error' : '');
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => { toastEl.className = 'toast'; }, error ? 5000 : 2500);
+  }
+
+  function inputPrecio(valor, onChange, etiqueta) {
+    const input = el('input', { type: 'number', inputmode: 'numeric', min: '0', step: '1', 'aria-label': etiqueta });
+    input.value = valor;
+    const caja = el('label', { class: 'precio' }, el('span', { text: '$' }), input);
+    input.addEventListener('input', onChange);
+    return { caja, input };
+  }
+
+  // Un precio es valido si es un entero >= 0. Vacio o con decimales no se guarda.
+  function leerPrecio(input) {
+    const t = input.value.trim();
+    if (!/^\d+$/.test(t)) return null;
+    const n = Number(t);
+    return n <= 100000 ? n : null;
+  }
+
+  function filaProducto(p) {
+    const row = el('div', { class: 'row', 'data-nombre': p.nombre.toLowerCase() });
+    const nombre = el('div', { class: 'nombre' }, document.createTextNode(p.nombre));
+
+    const { caja, input } = inputPrecio(p.precio, refrescar, `Precio de ${p.nombre}`);
+
+    const check = el('input', { type: 'checkbox', 'aria-label': `Sin stock: ${p.nombre}` });
+    check.checked = p.sin_stock;
+    check.addEventListener('change', refrescar);
+    const stock = el('label', { class: 'stock' }, check, el('span', { text: 'Sin stock' }));
+
+    row.append(nombre, caja, stock);
+    controles.productos.set(p.id, { row, input, caja, check, stock });
+    return row;
+  }
+
+  function filaOpcion(o) {
+    const row = el('div', { class: 'row opt', 'data-nombre': o.nombre.toLowerCase() });
+    const nombre = el('div', { class: 'nombre' }, document.createTextNode(o.nombre));
+    const { caja, input } = inputPrecio(o.precio_extra, refrescar, `Precio extra de ${o.nombre}`);
+    row.append(nombre, caja);
+    controles.opciones.set(o.id, { row, input, caja });
+    return row;
+  }
+
+  function render(data) {
+    content.replaceChildren();
+    controles.productos.clear();
+    controles.opciones.clear();
+    original = {
+      productos: new Map(data.productos.map(p => [p.id, { precio: p.precio, sin_stock: p.sin_stock }])),
+      opciones: new Map(data.grupos.flatMap(g => g.opciones.map(o => [o.id, { precio_extra: o.precio_extra }]))),
+    };
+
+    const orden = CATEGORIAS.map(([slug]) => slug);
+    const porCat = new Map();
+    for (const p of data.productos) {
+      if (!porCat.has(p.categoria)) porCat.set(p.categoria, []);
+      porCat.get(p.categoria).push(p);
+    }
+    const slugs = [...porCat.keys()].sort((a, b) => {
+      const ia = orden.indexOf(a), ib = orden.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+
+    for (const slug of slugs) {
+      const nombreCat = (CATEGORIAS.find(c => c[0] === slug) || [, slug.charAt(0).toUpperCase() + slug.slice(1)])[1];
+      const card = el('div', { class: 'card' });
+      for (const p of porCat.get(slug).sort((a, b) => a.orden - b.orden)) card.append(filaProducto(p));
+      content.append(el('section', { class: 'sec' }, el('h2', { text: nombreCat }), card));
+    }
+
+    if (data.grupos.length) {
+      const sec = el('section', { class: 'sec' }, el('h2', { text: 'Extras y opciones (precio que se suma)' }));
+      const card = el('div', { class: 'card' });
+      // Extras y salsas primero: son los que el local suele tocar.
+      const prioridad = (g) => { const i = ['extras', 'salsas'].indexOf(g.slug); return i === -1 ? 9 : i; };
+      for (const g of [...data.grupos].sort((a, b) => prioridad(a) - prioridad(b))) {
+        const usado = g.usado_en.length ? 'Se usa en: ' + g.usado_en.join(', ') : 'Sin productos asignados';
+        card.append(el('div', { class: 'grupo-titulo' }, document.createTextNode(g.nombre), el('small', { text: usado })));
+        for (const o of g.opciones) card.append(filaOpcion(o));
+      }
+      sec.append(card);
+      content.append(sec);
+    }
+
+    aplicarBusqueda();
+    refrescar();
+  }
+
+  // Calcula que cambio respecto de lo guardado y actualiza la UI.
+  function cambios() {
+    const productos = [], opciones = [];
+    let invalidos = 0;
+
+    for (const [id, c] of controles.productos) {
+      const base = original.productos.get(id);
+      const precio = leerPrecio(c.input);
+      const sinStock = c.check.checked;
+      const cambio = { id };
+      if (precio === null) invalidos++;
+      else if (precio !== base.precio) cambio.precio = precio;
+      if (sinStock !== base.sin_stock) cambio.sin_stock = sinStock;
+      c.caja.classList.toggle('invalido', precio === null);
+      c.stock.classList.toggle('on', sinStock);
+      c.row.classList.toggle('sin-stock', sinStock);
+      const hay = cambio.precio !== undefined || cambio.sin_stock !== undefined;
+      c.row.classList.toggle('changed', hay);
+      if (hay) productos.push(cambio);
+    }
+    for (const [id, c] of controles.opciones) {
+      const base = original.opciones.get(id);
+      const precio = leerPrecio(c.input);
+      c.caja.classList.toggle('invalido', precio === null);
+      if (precio === null) { invalidos++; c.row.classList.remove('changed'); continue; }
+      const hay = precio !== base.precio_extra;
+      c.row.classList.toggle('changed', hay);
+      if (hay) opciones.push({ id, precio_extra: precio });
+    }
+    return { productos, opciones, invalidos };
+  }
+
+  function refrescar() {
+    const { productos, opciones, invalidos } = cambios();
+    const n = productos.length + opciones.length;
+    countEl.textContent = invalidos
+      ? `Hay ${invalidos} precio${invalidos > 1 ? 's' : ''} inválido${invalidos > 1 ? 's' : ''}`
+      : n ? `${n} cambio${n > 1 ? 's' : ''} sin guardar` : 'Sin cambios';
+    countEl.classList.toggle('dirty', n > 0 && !invalidos);
+    saveBtn.disabled = n === 0 || invalidos > 0;
+    discardBtn.hidden = n === 0;
+  }
+
+  function aplicarBusqueda() {
+    const q = $('search').value.trim().toLowerCase();
+    for (const row of content.querySelectorAll('.row')) {
+      row.hidden = q !== '' && !row.dataset.nombre.includes(q);
+    }
+    // Esconde las secciones que quedaron vacias.
+    for (const sec of content.querySelectorAll('.sec')) {
+      sec.hidden = q !== '' && ![...sec.querySelectorAll('.row')].some(r => !r.hidden);
+    }
+  }
+
+  async function pedir(url, opciones) {
+    const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...opciones });
+    if (res.status === 401) { location.reload(); throw new Error('Sesión vencida'); }
+    return res;
+  }
+
+  async function cargar() {
+    try {
+      const res = await pedir('/api/editar/menu');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      render(await res.json());
+    } catch (e) {
+      content.replaceChildren(el('p', { class: 'msg error', text: 'No se pudo cargar el menú. Recargá la página.' }));
+    }
+  }
+
+  async function guardar() {
+    const { productos, opciones, invalidos } = cambios();
+    if (invalidos || (!productos.length && !opciones.length)) return;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando…';
+    try {
+      const res = await pedir('/api/editar/guardar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productos, opciones }),
+      });
+      const r = await res.json().catch(() => ({}));
+      if (res.status === 422) throw new Error('Hay un dato inválido. Revisá los precios.');
+      if (!res.ok && res.status !== 207) throw new Error('No se pudo guardar. Probá de nuevo.');
+      await cargar();
+      if (r.fallidos && r.fallidos.length) {
+        toast(`Se guardaron ${r.guardados}, pero ${r.fallidos.length} no. Revisá y probá de nuevo.`, true);
+      } else {
+        toast(`Guardado (${r.guardados} cambio${r.guardados > 1 ? 's' : ''}). Ya se ve en la página de pedidos.`);
+      }
+    } catch (e) {
+      toast(e.message || 'No se pudo guardar.', true);
+    } finally {
+      saveBtn.textContent = 'Guardar';
+      refrescar();
+    }
+  }
+
+  function descartar() {
+    for (const [id, c] of controles.productos) {
+      const base = original.productos.get(id);
+      c.input.value = base.precio;
+      c.check.checked = base.sin_stock;
+    }
+    for (const [id, c] of controles.opciones) c.input.value = original.opciones.get(id).precio_extra;
+    refrescar();
+  }
+
+  saveBtn.addEventListener('click', guardar);
+  discardBtn.addEventListener('click', descartar);
+  $('search').addEventListener('input', aplicarBusqueda);
+
+  // Evita perder cambios sin guardar por cerrar la pestaña sin querer.
+  window.addEventListener('beforeunload', (e) => {
+    const { productos, opciones } = cambios();
+    if (productos.length + opciones.length) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  cargar();
+})();
+</script>
+</body>
+</html>

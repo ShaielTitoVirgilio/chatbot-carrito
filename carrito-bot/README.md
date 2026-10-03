@@ -21,6 +21,23 @@ carrito-bot/
 
 ---
 
+## 🧰 Páginas para el local
+
+Las dos piden usuario y clave (`PANEL_USER` / `PANEL_PASS`):
+
+- `/panel` — tablero de pedidos.
+- `/editar` — editor del menú: precio de cada producto, casilla **Sin stock**
+  y precio de las opciones (extras, salsas, sabores). Al guardar se actualiza la
+  base y se vacía la caché del catálogo, así que el cambio se ve enseguida en la
+  web de pedidos. Un producto sin stock sigue apareciendo ("Agotado por hoy")
+  pero no se puede pedir, y el server lo rechaza (`producto_agotado`). El bot de
+  WhatsApp directamente no lo ofrece.
+
+Requiere `SUPABASE_SERVICE_ROLE_KEY`: con la clave anónima las escrituras las
+bloquea RLS y el editor lo informa como "no se guardó".
+
+---
+
 ## ⚙️ Instalación
 
 ```bash

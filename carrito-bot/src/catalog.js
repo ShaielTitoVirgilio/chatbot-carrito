@@ -44,7 +44,10 @@ async function selectOpciones(table, columns) {
 
 async function loadCatalog() {
     const [menuRes, groups, items, catOpts, itemOpts, configRows] = await Promise.all([
-        supabase.from("menu").select("*").eq("disponible", true).order("orden"),
+        // Se traen TAMBIEN los productos sin stock (disponible = false): la web
+        // los muestra bloqueados ("Agotado") y priceLine los rechaza. Antes se
+        // filtraban aca y el cliente no se enteraba de que existian.
+        supabase.from("menu").select("*").order("orden"),
         selectOpciones("option_groups", "*"),
         selectOpciones("option_items", "*"),
         selectOpciones("category_options", "*"),
@@ -158,6 +161,8 @@ function buildProducto(p, ctx) {
         descripcion: p.descripcion || "",
         precio: Number(p.precio || 0),
         destacado: !!p.destacado,
+        // Sin stock: se ve pero no se puede pedir. Lo cambia el local desde /editar.
+        agotado: p.disponible === false,
         // Dos imagenes: la chica va en la tarjeta del menu, la grande en el
         // detalle. El frontend resuelve el fallback entre ellas y la categoria.
         image_url: p.image_url || null,

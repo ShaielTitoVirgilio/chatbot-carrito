@@ -68,6 +68,31 @@ test("una bebida no ofrece ninguna opcion", () => {
 
 // ── priceLine ──
 
+test("un producto sin stock (agotado) no se puede pedir", () => {
+    const sinStock = {
+        productos: [{
+            id: 9, slug: "cerveza-corona-330cc", categoria: "bebidas",
+            nombre: "Cerveza Corona 330cc.", precio: 99, orden: 1, grupos: [], agotado: true,
+        }],
+    };
+    const r = priceLine(sinStock, { producto_slug: "cerveza-corona-330cc", cantidad: 2 });
+    assert.equal(r.ok, false);
+    assert.equal(r.errores[0].codigo, "producto_agotado");
+    assert.equal(r.errores[0].nombre, "Cerveza Corona 330cc.");
+    assert.equal(r.line, undefined);
+
+    // Y frena el carrito entero: no se toma un pedido a medias.
+    const cart = priceCart(sinStock, [{ producto_slug: "cerveza-corona-330cc", cantidad: 1 }]);
+    assert.equal(cart.ok, false);
+    assert.equal(cart.errores[0].codigo, "producto_agotado");
+});
+
+test("un producto con stock sigue funcionando igual (agotado ausente o false)", () => {
+    assert.equal(priceLine(CATALOG, { producto_slug: "refresco-cola-600ml", cantidad: 1 }).ok, true);
+    const explicito = { productos: [{ ...CATALOG.productos[3], agotado: false }] };
+    assert.equal(priceLine(explicito, { producto_slug: "refresco-cola-600ml", cantidad: 1 }).ok, true);
+});
+
 test("producto inexistente no rompe: devuelve error", () => {
     const r = priceLine(CATALOG, { producto_slug: "hamburguesa-de-rana", cantidad: 1 });
     assert.equal(r.ok, false);

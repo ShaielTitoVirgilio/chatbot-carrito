@@ -21,6 +21,7 @@ const supabase = require("./db");
 const { buildOrderMessage, buildWhatsappLink, buildChatLink } = require("./messages");
 const webRoutes = require("./web/routes");
 const { cors: webCors } = require("./web/middleware");
+const adminRoutes = require("./admin");
 
 const MEDIA_SIGNED_URL_TTL = 3600; // 1 hora: alcanza para que el panel la muestre
 
@@ -242,6 +243,12 @@ app.post("/eliminar-datos", (req, res) => {
 app.get("/panel", basicAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "../public/panel.html"));
 });
+// Editor de menu: precios, stock y precio de los extras. Mismas credenciales
+// que /panel; su API (/api/editar) ya queda detras del basicAuth de /api.
+app.get("/editar", basicAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, "../public/editar.html"));
+});
+app.use("/api/editar", adminRoutes);
 app.use(basicAuth, express.static(path.join(__dirname, "../public")));
 
 // ─────────────────────────────────────────────
@@ -491,6 +498,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`\n🚀 Carrito del Paseo Bot corriendo en puerto ${PORT}`);
     console.log(`📊 Panel: http://localhost:${PORT}/panel`);
+    console.log(`✏️  Editor de menú: http://localhost:${PORT}/editar`);
     console.log(`\nVariables de entorno:`);
     console.log(`  WHATSAPP_TOKEN:       ${process.env.WHATSAPP_TOKEN ? "✅" : "❌ FALTA"}`);
     console.log(`  WHATSAPP_PHONE_ID:    ${process.env.WHATSAPP_PHONE_ID ? "✅" : "❌ FALTA"}`);
