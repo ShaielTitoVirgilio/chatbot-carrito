@@ -129,7 +129,11 @@
     .it-main { display: flex; justify-content: space-between; gap: 10px; font-weight: 600; }
     .it-main b { font-weight: 800; }
     .it-opts { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
-    .it-note { color: var(--amber); font-size: 12.5px; font-style: italic; margin-top: 2px; }
+    .it-note {
+      color: #93370d; background: var(--amber-soft); border: 1px solid #fedf89;
+      font-size: 14.5px; font-weight: 700; line-height: 1.35;
+      border-radius: 6px; padding: 4px 8px; margin-top: 5px;
+    }
     .items.compact .it { padding: 3px 0; }
     .items.compact .it + .it { border-top: none; }
 
@@ -163,6 +167,24 @@
     .btn.wa:hover { background: #ecfdf3; }
     .btn.disabled { opacity: .5; cursor: not-allowed; }
     .btn:disabled { opacity: .55; cursor: wait; }
+
+    /* tarjetas plegables (En preparación y Listos): resumen + detalle al tocar */
+    .c-resumen { cursor: pointer; border-radius: 6px; margin: -4px -6px; padding: 4px 6px; }
+    .c-resumen:hover { background: #f5f6f8; }
+    .c-resumen:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    .r-pie { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .r-izq { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; min-width: 0; }
+    .r-der { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .r-cant { color: #344054; font-weight: 600; }
+    .pill.coment { background: var(--amber-soft); color: var(--amber); }
+    .r-total { font-weight: 800; font-size: 15px; }
+    .r-toggle {
+      flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #eff4ff; color: var(--blue); font-size: 12px; transition: transform .15s;
+    }
+    .c-resumen[aria-expanded="true"] .r-toggle { transform: rotate(180deg); }
+    .c-detalle { margin-top: 10px; padding-top: 4px; border-top: 1px solid #eaecf0; }
 
     /* fila compacta del historial */
     .h-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -310,6 +332,7 @@
     error: false,
     cancelando: null,         // id del pedido en el modal de cancelar
     avisando: null,           // id del pedido en el modal de "avisar por WhatsApp"
+    abiertos: new Set(),      // tarjetas desplegadas, por "id:estado" (al cambiar de columna vuelven a plegarse)
   };
 
   const $ = (id) => document.getElementById(id);
@@ -442,7 +465,7 @@
       return `<div class="it">
         <div class="it-main"><span><b>${esc(cant)}x</b> ${esc(i.nombre || "?")}</span><span>${money(precio)}</span></div>
         ${opciones ? `<div class="it-opts">${esc(opciones)}</div>` : ""}
-        ${!compact && i.nota ? `<div class="it-note">"${esc(i.nota)}"</div>` : ""}
+        ${i.nota ? `<div class="it-note">"${esc(i.nota)}"</div>` : ""}
       </div>`;
     }).join("");
     return `<div class="items${compact ? " compact" : ""}">${filas}</div>`;
@@ -464,17 +487,57 @@
     </div>`;
   }
 
-  function datosCliente(o) {
+  function lineaCliente(o) {
     const tel = o.contact_phone || o.customer_phone;
-    const entrega = o.type === "delivery"
+    return `<div class="c-cliente">${esc(o.customer_name || "Sin nombre")} <span>${tel ? "· " + esc(tel) : ""}</span></div>`;
+  }
+  function lineaEntrega(o) {
+    return o.type === "delivery"
       ? `<div class="c-line"><em>Entrega:</em> ${esc(o.address || "sin dirección")}${o.address_details ? ` <em>(${esc(o.address_details)})</em>` : ""}</div>`
       : `<div class="c-line"><em>Retira en el local</em></div>`;
+  }
+  function pagoYNota(o) {
     const pago = o.payment_method
       ? `<div class="c-line"><em>Paga en</em> ${esc(o.payment_method)}${o.pays_with ? ` <em>· con</em> ${money(o.pays_with)}` : ""}</div>`
       : "";
-    return `<div class="c-cliente">${esc(o.customer_name || "Sin nombre")} <span>${tel ? "· " + esc(tel) : ""}</span></div>
-      ${entrega}${pago}
-      ${o.customer_note ? `<div class="c-note">Nota del cliente: ${esc(o.customer_note)}</div>` : ""}`;
+    return `${pago}${o.customer_note ? `<div class="c-note">Nota del cliente: ${esc(o.customer_note)}</div>` : ""}`;
+  }
+  function datosCliente(o) {
+    return lineaCliente(o) + lineaEntrega(o) + pagoYNota(o);
+  }
+
+  function cantidadProductos(o) {
+    return (Array.isArray(o.items) ? o.items : []).reduce((n, i) => n + (Number(i.cantidad) || 1), 0);
+  }
+  function tieneComentarios(o) {
+    return !!o.customer_note || (Array.isArray(o.items) && o.items.some((i) => i.nota));
+  }
+
+  // Tarjeta de En preparación / Listos: plegada muestra solo lo importante
+  // (nombre, teléfono, dirección, tipo, total y cantidad de productos); al
+  // tocarla se despliega `detalle` con los productos y los botones.
+  function tarjetaPlegable(o, detalle) {
+    const clave = o.id + ":" + o.status;
+    const abierto = state.abiertos.has(clave);
+    const n = cantidadProductos(o);
+    return `<article class="card st-${esc(o.status)}" data-id="${esc(o.id)}">
+      <div class="c-resumen" role="button" tabindex="0" aria-expanded="${abierto}" data-toggle="${esc(clave)}">
+        ${cabecera(o, false)}
+        ${lineaCliente(o)}
+        ${o.type === "delivery" ? lineaEntrega(o) : ""}
+        <div class="r-pie">
+          <span class="r-izq">
+            <span class="r-cant">${n} ${n === 1 ? "producto" : "productos"}</span>
+            ${tieneComentarios(o) ? `<span class="pill coment">Con comentarios</span>` : ""}
+          </span>
+          <span class="r-der">
+            <span class="r-total">${money(o.total)}</span>
+            <span class="r-toggle" title="${abierto ? "Ocultar detalle" : "Ver detalle"}">▼</span>
+          </span>
+        </div>
+      </div>
+      ${abierto ? `<div class="c-detalle">${detalle}</div>` : ""}
+    </article>`;
   }
 
   function tarjetaNueva(o) {
@@ -510,30 +573,26 @@
       o.eta_minutes ? `Demora acordada: ${esc(o.eta_minutes)} min` : "",
       esDelivery && Number(o.delivery_fee) > 0 ? `Envío ${money(o.delivery_fee)}` : "",
     ].filter(Boolean).join(" · ");
-    return `<article class="card st-confirmed" data-id="${esc(o.id)}">
-      ${cabecera(o, false)}
-      ${datosCliente(o)}
+    return tarjetaPlegable(o, `
+      ${pagoYNota(o)}
       ${itemsHtml(o, false)}
       <div class="totals"><span>Total${extra ? ` <small>${extra}</small>` : ""}</span><span>${money(o.total)}</span></div>
       <div class="btns">
         <button class="btn ready" type="button" data-act="listo" data-id="${esc(o.id)}">${esDelivery ? "En camino" : "Listo para retirar"}</button>
         <button class="btn cancel" type="button" data-act="cancelar" data-id="${esc(o.id)}">Cancelar</button>
         ${botonChat(o)}
-      </div>
-    </article>`;
+      </div>`);
   }
 
   function tarjetaLista(o) {
-    return `<article class="card st-${esc(o.status)}" data-id="${esc(o.id)}">
-      ${cabecera(o, false)}
-      ${datosCliente(o)}
+    return tarjetaPlegable(o, `
+      ${pagoYNota(o)}
       ${itemsHtml(o, true)}
       <div class="totals"><span>Total</span><span>${money(o.total)}</span></div>
       <div class="btns">
         <button class="btn done" type="button" data-act="entregado" data-id="${esc(o.id)}">Entregado</button>
         ${botonChat(o)}
-      </div>
-    </article>`;
+      </div>`);
   }
 
   function filaHistorial(o) {
@@ -767,11 +826,29 @@
   });
 
   // ---------------- Eventos del tablero ----------------
+  function plegar(clave) {
+    if (state.abiertos.has(clave)) state.abiertos.delete(clave);
+    else state.abiertos.add(clave);
+    dibujar();
+    const el = document.querySelector(`[data-toggle="${CSS.escape(clave)}"]`);
+    if (el) el.focus({ preventScroll: true });
+  }
+
   $("board").addEventListener("click", (e) => {
     const b = e.target.closest("[data-act]");
-    if (!b) return;
-    const id = b.dataset.id;
-    ({ confirmar, listo: abrirAviso, entregado, cancelar: abrirModal }[b.dataset.act] || (() => {}))(id);
+    if (b) {
+      const id = b.dataset.id;
+      ({ confirmar, listo: abrirAviso, entregado, cancelar: abrirModal }[b.dataset.act] || (() => {}))(id);
+      return;
+    }
+    const t = e.target.closest("[data-toggle]");
+    // Si se esta seleccionando texto (para copiar el telefono o la direccion) no se pliega.
+    if (t && !String(window.getSelection())) plegar(t.dataset.toggle);
+  });
+
+  $("board").addEventListener("keydown", (e) => {
+    const t = e.target.closest && e.target.closest("[data-toggle]");
+    if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); plegar(t.dataset.toggle); }
   });
 
   $("board").addEventListener("input", (e) => {
