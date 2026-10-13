@@ -225,3 +225,20 @@ test("sin config usa los valores por defecto del local", () => {
     assert.equal(s.abre, "18:30");
     assert.equal(s.cierra, "02:00");
 });
+
+test("verduras: 'ninguna' cumple el minimo y no se mezcla con otras", () => {
+    const conNinguna = [...VERDURAS, { slug: "ninguna", nombre: "Sin verduras", precio_extra: 0 }];
+    const catalog = { productos: [{
+        id: 9, slug: "hamburguesa-gigante", categoria: "hamburguesas", nombre: "Gigante", precio: 310, orden: 1,
+        grupos: [grupo("verduras", "Verduras", conNinguna, { min: 1, max: 10, requerido: true, orden: 1 })],
+    }] };
+
+    const sola = priceLine(catalog, { producto_slug: "hamburguesa-gigante", opciones: { verduras: ["ninguna"] } });
+    assert.equal(sola.ok, true);
+    assert.deepEqual(sola.line.opciones.verduras, ["ninguna"]);
+
+    const mezclada = priceLine(catalog, { producto_slug: "hamburguesa-gigante", opciones: { verduras: ["ninguna", "tomate"] } });
+    assert.equal(mezclada.ok, true);
+    assert.deepEqual(mezclada.line.opciones.verduras, ["tomate"]);
+    assert.ok(mezclada.avisos.some(a => a.codigo === "ninguna_mezclada"));
+});

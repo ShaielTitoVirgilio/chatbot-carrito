@@ -149,7 +149,7 @@ async function upsertCustomer(phone, { nombre, direccion } = {}) {
 }
 
 // ─────────────────────────────────────────────
-// HORARIO (14:00 – 02:00 hora Uruguay)
+// HORARIO (18:00 – 01:30 hora Uruguay)
 // ─────────────────────────────────────────────
 function isOpen() {
     const now = new Date().toLocaleString("es-UY", {
@@ -160,8 +160,8 @@ function isOpen() {
     });
     const [hour, minute] = now.split(":").map(Number);
     const totalMinutes = hour * 60 + minute;
-    const openTime = 18 * 60 + 35;  // 18:35
-    const closeTime = 2 * 60;        // 02:00
+    const openTime = 18 * 60;        // 18:00
+    const closeTime = 60 + 30;       // 01:30
     return totalMinutes >= openTime || totalMinutes < closeTime;
 }
 

@@ -4,7 +4,7 @@ const LOCAL_INFO = {
     nombre: "Carrito del Paseo",
     direccion: "Zorrilla de San Martín 1835, Paysandú",
     telefono: "472 28060",
-    horarios: "Todos los días de 18:30 a 02:00",
+    horarios: "Todos los días de 18:00 a 01:30",
     ciudad: "Paysandú, Uruguay",
     delivery: {
         disponible: true,

@@ -18,6 +18,7 @@ corren desde el SQL Editor de Supabase o con `apply_migration` del MCP.
 | 011 | `011_whatsapp_media_privado.sql` | Bucket de fotos de WhatsApp → privado | Ninguno |
 | 012 | `012_lectura_publica_opciones.sql` | Opciones del menú legibles por `anon` | Ninguno |
 | 013 | `013_config_lectura_publica.sql` | `config` legible por `anon` | Ninguno |
+| 014 | `014_menu_octubre.sql` | Menú de octubre: sin verduras, extras de hamburguesa y papas, refrescos, Stella | Ninguno (solo datos) |
 
 ## Antes de la 006
 

@@ -19,6 +19,9 @@ function findProduct(catalog, slug) {
 
 const MAX_CANTIDAD = 20;
 
+// Opcion que significa "nada de este grupo" (hoy: verduras).
+const NINGUNA = "ninguna";
+
 function clampCantidad(n) {
     const v = Math.floor(Number(n));
     if (!Number.isFinite(v) || v < 1) return 1;
@@ -78,6 +81,14 @@ function priceLine(catalog, rawLine) {
             }
             if (validas.some(v => v.slug === opcion.slug)) continue;   // duplicado
             validas.push(opcion);
+        }
+
+        // "ninguna" (ej: sin verduras) excluye al resto. Si llega mezclada,
+        // ganan las elegidas: es mas probable un toque de mas en "Ninguna"
+        // que alguien que quiera verduras y no-verduras a la vez.
+        if (validas.length > 1 && validas.some(o => o.slug === NINGUNA)) {
+            avisos.push({ codigo: "ninguna_mezclada", grupo: grupo.slug });
+            validas.splice(validas.findIndex(o => o.slug === NINGUNA), 1);
         }
 
         if (grupo.max && validas.length > grupo.max) {
