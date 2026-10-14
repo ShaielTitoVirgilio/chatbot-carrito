@@ -491,6 +491,9 @@ app.post("/api/bot/toggle", async (req, res) => {
 // STATUS
 // ─────────────────────────────────────────────
 app.get("/", (req, res) => {
+    // panel.carritodelpaseo.com a secas lleva al panel. En el resto de los hosts
+    // (la URL de Railway) sigue el JSON de estado, que sirve de healthcheck.
+    if (req.hostname.startsWith("panel.")) return res.redirect("/panel");
     res.json({ status: "🟢 Online", service: "Carrito del Paseo Bot", timestamp: new Date().toISOString() });
 });
 
