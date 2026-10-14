@@ -240,6 +240,10 @@ app.post("/eliminar-datos", (req, res) => {
         confirmation_code: confirmationCode,
     });
 });
+// panel.carritodelpaseo.com a secas lleva al panel. Va antes del basicAuth
+// general (el express.static de abajo) para redirigir sin pedir login dos veces.
+app.get("/", (req, res, next) =>
+    req.hostname.startsWith("panel.") ? res.redirect("/panel") : next());
 app.get("/panel", basicAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "../public/panel.html"));
 });
@@ -491,9 +495,6 @@ app.post("/api/bot/toggle", async (req, res) => {
 // STATUS
 // ─────────────────────────────────────────────
 app.get("/", (req, res) => {
-    // panel.carritodelpaseo.com a secas lleva al panel. En el resto de los hosts
-    // (la URL de Railway) sigue el JSON de estado, que sirve de healthcheck.
-    if (req.hostname.startsWith("panel.")) return res.redirect("/panel");
     res.json({ status: "🟢 Online", service: "Carrito del Paseo Bot", timestamp: new Date().toISOString() });
 });
 
