@@ -9,6 +9,14 @@
 
 const LOCAL_ADDRESS = "Zorrilla de San Martín 1835, Paysandú";
 
+// Se agregan al confirmar un delivery que se paga por transferencia.
+const DATOS_TRANSFERENCIA =
+    `*Datos para la transferencia:*\n` +
+    `Banco: BBVA - Cuenta corriente en pesos uruguayos\n` +
+    `N° de cuenta: 22183531\n` +
+    `A nombre de: Gabriel Tito Virgilio\n\n` +
+    `Enviá el comprobante por acá luego de hacer el pago.`;
+
 const PAYMENT_LABEL = {
     efectivo: "efectivo",
     transferencia: "transferencia",
@@ -50,6 +58,9 @@ function confirmedMessage(order) {
 
     if (order.eta_minutes) {
         msg += `\nDemora aproximada: ${order.eta_minutes} min`;
+    }
+    if (isDelivery(order) && order.payment_method === "transferencia") {
+        msg += `\n\n${DATOS_TRANSFERENCIA}`;
     }
     return msg;
 }

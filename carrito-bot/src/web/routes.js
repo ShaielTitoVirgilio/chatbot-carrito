@@ -157,9 +157,15 @@ router.post("/orders", rateLimit({ windowMs: 10 * 60_000, max: 5, key: "orders" 
         // retirar. Solo el delivery lo necesita (para el cambio del repartidor).
         const cobraAlEntregar = cliente.tipo === "delivery";
         const pagosOk = (data.config.pagos || {})[cliente.tipo] || ["efectivo"];
-        const pago = cobraAlEntregar
-            ? (pagosOk.includes(body.pago) ? body.pago : pagosOk[0])
+        // Con un solo medio habilitado se usa ese; con varios el cliente TIENE
+        // que haber elegido uno (el local necesita saber si pasa la cuenta).
+        const pago = !cobraAlEntregar ? null
+            : pagosOk.includes(body.pago) ? body.pago
+            : pagosOk.length === 1 ? pagosOk[0]
             : null;
+        if (cobraAlEntregar && !pago) {
+            return res.status(422).json({ error: "datos_invalidos", campos: ["pago"], carrito: [] });
+        }
 
         const { data: numero, error: rpcError } = await supabase.rpc("next_order_number");
         if (rpcError) {

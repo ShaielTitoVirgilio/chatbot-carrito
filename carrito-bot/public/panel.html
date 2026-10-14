@@ -111,6 +111,8 @@
     .pill.delivery { background: #eff4ff; color: #175cd3; }
     .pill.retiro { background: #f4f3ff; color: #5925dc; }
     .pill.wa { background: #ecfdf3; color: var(--green-dark); }
+    .pill.pago-efectivo { background: #ecfdf3; color: var(--green-dark); }
+    .pill.pago-transferencia { background: #fff4e5; color: #b54708; border: 1px solid #fec84b; }
     .pill.estado { background: #f2f4f7; color: #344054; }
     .pill.estado.rejected { background: var(--red-soft); color: #b42318; }
     .c-age { margin-left: auto; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
@@ -477,12 +479,19 @@
       : `<span class="btn wa disabled" title="El pedido no tiene un teléfono válido">Sin teléfono</span>`;
   }
 
+  // Solo delivery: avisa de un vistazo si hay que pasarle los datos de la cuenta.
+  const PAGO_LABEL = { efectivo: "Efectivo", transferencia: "Transferencia" };
+  function pillPago(o) {
+    if (o.type !== "delivery" || !PAGO_LABEL[o.payment_method]) return "";
+    return `<span class="pill pago-${esc(o.payment_method)}">${PAGO_LABEL[o.payment_method]}</span>`;
+  }
+
   function cabecera(o, urgente) {
     const edad = minutosDesde(o.created_at);
     const tipo = o.type === "delivery" ? `<span class="pill delivery">Delivery</span>` : `<span class="pill retiro">Retiro</span>`;
     const canal = o.channel && o.channel !== "web" ? `<span class="pill wa">WhatsApp</span>` : "";
     return `<div class="c-top">
-      <span class="c-num">${esc(o.order_number || "-")}</span>${tipo}${canal}
+      <span class="c-num">${esc(o.order_number || "-")}</span>${tipo}${pillPago(o)}${canal}
       <span class="c-age${urgente ? " urgent" : ""}" data-created="${esc(o.created_at || "")}">${esc(hora(o.created_at))} · ${esc(textoEdad(edad))}</span>
     </div>`;
   }

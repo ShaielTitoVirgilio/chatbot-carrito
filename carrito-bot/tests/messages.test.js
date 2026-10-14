@@ -47,3 +47,19 @@ test("el link de chat no lleva texto y normaliza el telefono", () => {
     assert.equal(buildChatLink({ contact_phone: "abc" }), null);
     assert.equal(buildChatLink({}), null);
 });
+
+test("delivery con transferencia: el mensaje de confirmado lleva los datos de la cuenta", () => {
+    const pedido = { ...PEDIDOS.delivery, payment_method: "transferencia", pays_with: null, total: 550 };
+    const texto = buildOrderMessage(pedido, "confirmed");
+    assert.match(texto, /Total: \$550 \(transferencia\)/);
+    assert.match(texto, /BBVA - Cuenta corriente en pesos uruguayos/);
+    assert.match(texto, /N° de cuenta: 22183531/);
+    assert.match(texto, /A nombre de: Gabriel Tito Virgilio/);
+    assert.match(texto, /Enviá el comprobante por acá luego de hacer el pago\.$/);
+    assert.equal([...texto].filter((c) => c.codePointAt(0) > 0xff).length, 0);
+});
+
+test("efectivo y retiro no llevan los datos de la cuenta", () => {
+    assert.doesNotMatch(buildOrderMessage(PEDIDOS.delivery, "confirmed"), /22183531/);
+    assert.doesNotMatch(buildOrderMessage({ ...PEDIDOS.retiro, payment_method: "transferencia" }, "confirmed"), /22183531/);
+});

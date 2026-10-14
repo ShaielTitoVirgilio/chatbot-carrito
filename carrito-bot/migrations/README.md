@@ -19,6 +19,7 @@ corren desde el SQL Editor de Supabase o con `apply_migration` del MCP.
 | 012 | `012_lectura_publica_opciones.sql` | Opciones del menú legibles por `anon` | Ninguno |
 | 013 | `013_config_lectura_publica.sql` | `config` legible por `anon` | Ninguno |
 | 014 | `014_menu_octubre.sql` | Menú de octubre: sin verduras, extras de hamburguesa y papas, refrescos, Stella | Ninguno (solo datos) |
+| 015 | `015_transferencia_delivery.sql` | Delivery: efectivo o transferencia | Ninguno (solo datos) |
 
 ## Antes de la 006
 
