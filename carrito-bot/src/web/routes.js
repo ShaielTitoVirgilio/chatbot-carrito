@@ -205,9 +205,26 @@ router.post("/orders", rateLimit({ windowMs: 10 * 60_000, max: 5, key: "orders" 
             return res.status(500).json({ error: "no_pude_guardar" });
         }
 
+        await guardarCliente(cliente);
+
         console.log(`🌐 Pedido web ${numero} — ${cliente.nombre} (${cliente.tipo}) $${fila.total}`);
         res.status(201).json(serializarPedido(creado));
     }));
+
+// Deja al cliente en customers (misma tabla que usa el bot). Si falla no se
+// cae el pedido: ya esta guardado y es lo unico que importa.
+async function guardarCliente({ telefono, nombre, direccion, referencia }) {
+    // Mismo formato que WhatsApp (598...) para que sea un solo cliente.
+    let phone = String(telefono).replace(/\D/g, "");
+    if (/^09\d{7}$/.test(phone)) phone = "598" + phone.slice(1);
+    if (!phone) return;
+    const fila = { phone, updated_at: new Date().toISOString() };
+    if (nombre) fila.nombre = nombre;
+    if (direccion) fila.direccion = direccion;
+    if (referencia) fila.referencia = referencia;
+    const { error } = await supabase.from("customers").upsert(fila, { onConflict: "phone" });
+    if (error) console.error("❌ upsert customer:", error.message);
+}
 
 // ─────────────────────────────────────────────
 // GET /orders/:token — pantalla de "pedido enviado"
