@@ -75,7 +75,7 @@
     .board {
       flex: 1 1 auto; min-height: 0;
       display: grid;
-      grid-template-columns: 1.15fr 1.15fr 1fr 0.85fr;
+      grid-template-columns: 1.1fr 1.1fr 1fr;
       gap: 14px; padding: 14px;
     }
     .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -304,11 +304,13 @@
   const URGENTE_MIN = 5;
   const BASE_TITLE = "Pedidos - Carrito del Paseo";
 
+  const CERRADOS = ["delivered", "done", "rejected", "cancelled", "resolved", "manual"];
   const COLUMNAS = [
     { id: "nuevos",      titulo: "Nuevos",             estados: ["pending"],                 vacio: "No hay pedidos nuevos." },
     { id: "preparacion", titulo: "En preparación",     estados: ["confirmed"],               vacio: "Nada en preparación." },
-    { id: "listos",      titulo: "Listos / En camino", estados: ["ready", "on_the_way"],     vacio: "Nada listo todavía." },
-    { id: "historial",   titulo: "Historial de hoy",   estados: ["delivered", "done", "rejected", "cancelled", "resolved", "manual"], vacio: "Todavía no hay pedidos cerrados." },
+    // Listos y cerrados van juntos: en la practica nadie marcaba "Entregado",
+    // asi que una columna aparte de historial no servia para nada.
+    { id: "listos",      titulo: "Listos / Cancelados", estados: ["ready", "on_the_way", ...CERRADOS], vacio: "Nada listo todavía." },
   ];
 
   const ESTADO_LABEL = {
@@ -632,9 +634,12 @@
 
     board.innerHTML = COLUMNAS.map((col) => {
       let lista = state.orders.filter((o) => col.estados.includes(o.status));
-      // Los que esperan hace mas van arriba; el historial al reves.
-      lista = lista.sort(col.id === "historial" ? ordenDesc : ordenAsc);
-      const dibujo = { nuevos: tarjetaNueva, preparacion: tarjetaPreparacion, listos: tarjetaLista, historial: filaHistorial }[col.id];
+      // Los que esperan hace mas van arriba; abajo los cerrados, el ultimo primero.
+      const abiertos = lista.filter((o) => !CERRADOS.includes(o.status)).sort(ordenAsc);
+      const cerrados = lista.filter((o) => CERRADOS.includes(o.status)).sort(ordenDesc);
+      lista = [...abiertos, ...cerrados];
+      const dibujoCol = { nuevos: tarjetaNueva, preparacion: tarjetaPreparacion, listos: tarjetaLista }[col.id];
+      const dibujo = (o) => CERRADOS.includes(o.status) ? filaHistorial(o) : dibujoCol(o);
       return `<section class="col ${col.id}${state.filtro === col.id ? " active" : ""}" data-col="${col.id}">
         <div class="col-head"><span class="col-title">${esc(col.titulo)}</span><span class="col-count">${lista.length}</span></div>
         <div class="col-body">${lista.length ? lista.map(dibujo).join("") : `<div class="col-empty">${esc(col.vacio)}</div>`}</div>
